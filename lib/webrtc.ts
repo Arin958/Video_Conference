@@ -75,6 +75,13 @@ export class WebRTCManager {
   async createPeer(peerId: string, isInitiator: boolean): Promise<PeerConnection> {
     console.log(`Creating peer connection with ${peerId}, initiator: ${isInitiator}`);
 
+     // Check if peer already exists
+  if (this.peers.has(peerId)) {
+    console.log(`⚠️ Peer ${peerId} already exists, skipping`);
+    return this.peers.get(peerId)!;
+  }
+
+
     // WebRTC configuration
     const configuration: RTCConfiguration = {
       iceServers: [
@@ -92,12 +99,16 @@ export class WebRTCManager {
 
     // Create RTCPeerConnection
     const connection = new RTCPeerConnection(configuration);
+    console.log(`🔗 RTCPeerConnection created for ${peerId}`);
     
     // Add local stream tracks if available
     if (this.localStream) {
+          console.log(`➕ Adding ${this.localStream.getTracks().length} tracks to ${peerId}`);
       this.localStream.getTracks().forEach(track => {
         connection.addTrack(track, this.localStream!);
       });
+    } else {
+      console.log(`⚠️ No local stream available for ${peerId}`);
     }
 
     // Create data channel for chat (initiator only)
@@ -161,12 +172,14 @@ export class WebRTCManager {
     // If initiator, create and send offer
     if (isInitiator) {
       try {
+            console.log(`📤 Creating offer for ${peerId}...`);
         const offer = await connection.createOffer({
           offerToReceiveAudio: true,
           offerToReceiveVideo: true
         });
         
         await connection.setLocalDescription(offer);
+        console.log(`📤 Offer created for ${peerId}, sending via socket`);
         socketService.sendWebRTCOffer(peerId, offer, this.userId);
       } catch (error) {
         console.error('Error creating offer:', error);

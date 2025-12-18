@@ -7,7 +7,7 @@ import {
   MicOff,
   Video,
   VideoOff,
-  ScreenShare,
+
   PhoneOff,
   Settings,
   Users,
@@ -30,23 +30,16 @@ export default function MediaControls({
   const {
     isVideoOn,
     isAudioOn,
-    isScreenSharing,
+ 
     toggleLocalVideo,
     toggleLocalAudio,
-    startScreenShare,
-    stopScreenShare,
+
     leaveRoom
   } = useRoom();
 
   const { hasCamera, hasMicrophone } = useMediaStream();
 
-  const handleScreenShare = () => {
-    if (isScreenSharing) {
-      stopScreenShare();
-    } else {
-      startScreenShare();
-    }
-  };
+
 
   const handleLeaveRoom = () => {
     if (confirm('Are you sure you want to leave the room?')) {
@@ -97,19 +90,7 @@ export default function MediaControls({
           )}
         </Button>
 
-        {/* Screen Share */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleScreenShare}
-          className={cn(
-            "rounded-full",
-            isScreenSharing && "bg-purple-600 hover:bg-purple-700"
-          )}
-          title={isScreenSharing ? "Stop screen sharing" : "Share screen"}
-        >
-          <ScreenShare className="w-5 h-5 text-white" />
-        </Button>
+     
 
         {/* Divider */}
         <div className="h-8 w-px bg-gray-700 mx-2"></div>

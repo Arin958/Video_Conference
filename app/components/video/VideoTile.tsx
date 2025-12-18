@@ -3,7 +3,7 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Mic, MicOff, Video, VideoOff, User, ScreenShare } from 'lucide-react';
+import { Mic, MicOff,  VideoOff, User, ScreenShare } from 'lucide-react';
 import { User as UserType } from '@/app/store/useStore';
 
 interface VideoTileProps {

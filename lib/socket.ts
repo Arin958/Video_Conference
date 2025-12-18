@@ -8,11 +8,23 @@ type MediaToggleData =
   | { userId: string }; 
 
 
+  interface MediaTogglePayload {
+  userId: string;
+  state: boolean;
+}
+
+interface ScreenSharePayload {
+  userId: string;
+}
+
+
 // Types
 export interface RoomJoinResponse {
   success: boolean;
+  socketId: string;
   roomId: string;
   userName: string
+  hostId: string
   userId: string;
   isHost: boolean;
   participants: Participant[];
@@ -22,11 +34,26 @@ export interface RoomJoinResponse {
 export interface Participant {
   id: string | null | undefined;
   userId: string;
+ 
   userName: string;
   socketId: string;
   isVideoOn: boolean;
   isAudioOn: boolean;
   isScreenSharing?: boolean;
+}
+
+interface UserLeftPayload {
+  userId: string;
+  socketId: string;
+}
+
+interface UserJoinedPayload {
+  userId: string;
+  socketId: string;
+  userName: string;
+  isVideoOn: boolean;
+  isAudioOn: boolean;
+  isScreenSharing: boolean;
 }
 
 export interface ChatMessage {
@@ -270,13 +297,16 @@ class SocketService {
     this.onRoomJoinedCallback = callback;
   }
 
-  onUserJoined(callback: (user: Participant) => void): void {
-    this.onUserJoinedCallback = callback;
+  onUserJoined(callback: (data: UserJoinedPayload) => void): void {
+    if (this.socket) {
+      this.socket.on("user-joined", callback);
+    }
   }
 
-  onUserLeft(callback: (data: { userId: string }) => void): void {
-    this.onUserLeftCallback = callback;
-  }
+onUserLeft(callback: (data: UserLeftPayload) => void) {
+  if(!this.socket) return
+  this.socket.on("user-left", callback);
+}
 
   onWebRTCOffer(callback: (data: { offer: RTCSessionDescriptionInit; from: string }) => void): void {
     this.onWebRTCOfferCallback = callback;
@@ -293,10 +323,14 @@ class SocketService {
   onChatMessage(callback: (message: ChatMessage) => void): void {
     this.onChatMessageCallback = callback;
   }
+onMediaToggled(
+  type: "audio" | "video",
+  callback: (data: MediaTogglePayload) => void
+) {
+  if(!this.socket) return
+  this.socket.on(`media-${type}-toggled`, callback);
+}
 
-  onMediaToggled(event: 'audio' | 'video' | 'screen-share-start' | 'screen-share-stop', callback: (data: MediaToggleData) => void): void {
-    this.onMediaToggledCallbacks.set(event, callback);
-  }
 
   // Utility methods
   getSocketId(): string | undefined {
