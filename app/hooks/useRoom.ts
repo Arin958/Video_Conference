@@ -86,7 +86,7 @@ export const useRoom = () => {
         initSocket();
 
         return () => {
-            socketService.disconnect();
+             console.log('🔄 useRoom cleanup - cleaning WebRTC only');
             webrtcManagerRef.current?.cleanup();
         }
     }, []);

@@ -43,6 +43,7 @@ class SocketService {
   private isConnected = false;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
+    private connectTime = 0; 
   
   // Event callbacks
   private onRoomJoinedCallback: ((data: RoomJoinResponse) => void) | null = null;
@@ -56,6 +57,7 @@ class SocketService {
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
+            this.connectTime = Date.now(); 
         if (this.socket) {
       if (this.socket.connected) return resolve();
       return this.socket.connect();
@@ -71,11 +73,13 @@ class SocketService {
     });
 
       // Connection events
-      this.socket.once('connect', () => {
-      console.log('✅ Connected:', this.socket?.id);
-      this.isConnected = true;
-      resolve();
-    });
+    this.socket.once('connect', () => {
+        console.log('✅ Connected:', this.socket?.id);
+        console.log('Connection time:', this.connectTime);
+        this.isConnected = true;
+        this.reconnectAttempts = 0; // Reset on successful connect
+        resolve();
+      });
 
 
       this.socket.on('connect_error', (error) => {
@@ -87,6 +91,18 @@ class SocketService {
           reject(new Error('Failed to connect after multiple attempts'));
         }
       });
+
+        // 🔥 CRITICAL MISSING HANDLER - ADD THIS:
+    this.socket.on('disconnect', (reason) => {
+      console.log('🔌 Socket disconnected:', reason);
+      this.isConnected = false;
+      
+      if (reason === 'io server disconnect') {
+        console.log('Server disconnected us');
+      } else if (reason === 'transport close') {
+        console.log('Network connection lost');
+      }
+    });
 
    
 
