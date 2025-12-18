@@ -5,11 +5,13 @@ import { Participant, ChatMessage } from '@/lib/socket';
 export interface User {
   id: string;
   userName: string;
+
   isHost: boolean;
   isVideoOn: boolean;
   isAudioOn: boolean;
   isScreenSharing: boolean;
   stream?: MediaStream;
+  socketId?: string;
 }
 
 export interface Room {

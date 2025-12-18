@@ -91,6 +91,23 @@ export const useRoom = () => {
     };
   }, []);
 
+      useEffect(() => {
+        if (localStream && currentUser && currentRoom && !webrtcManagerRef.current) {
+            console.log('🎥 Local stream ready, initializing WebRTC...');
+            webrtcManagerRef.current = new WebRTCManager(currentUser.id, currentRoom.id);
+            webrtcManagerRef.current.setLocalStream(localStream);
+            
+            // Connect to existing participants if guest
+            if (!currentUser.isHost) {
+                Array.from(currentRoom.participants.values()).forEach(participant => {
+                    if (participant.socketId) {
+                        webrtcManagerRef.current?.createPeer(participant.socketId, true);
+                    }
+                });
+            }
+        }
+    }, [localStream, currentUser, currentRoom]);
+
   /* -------------------------------- CREATE ROOM -------------------------------- */
 
   const createRoom = useCallback(async (userName: string, roomId: string) => {
@@ -109,7 +126,7 @@ export const useRoom = () => {
         hostId: res.userId
       });
 
-      webrtcManagerRef.current = new WebRTCManager(res.socketId, res.roomId);
+      
 
       return res;
     } finally {
@@ -135,7 +152,7 @@ export const useRoom = () => {
         hostId: res.hostId
       });
 
-      webrtcManagerRef.current = new WebRTCManager(res.socketId, res.roomId);
+     
 
       /* ✅ ADD EXISTING PARTICIPANTS */
       res.participants.forEach((p) => {

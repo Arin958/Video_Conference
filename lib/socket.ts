@@ -139,6 +139,7 @@ class SocketService {
       });
 
       this.socket.on('user-joined', (user: Participant) => {
+        console.log('👤 User joined:', user.userName);
         this.onUserJoinedCallback?.(user);
       });
 
