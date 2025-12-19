@@ -21,6 +21,9 @@ declare global {
   }
 }
 
+  // Remove local WebRTCEvent interface and import from webrtc lib
+  import type { WebRTCEvent } from "@/lib/webrtc";
+
 export const useRoom = () => {
   const {
     currentUser,
@@ -153,6 +156,61 @@ useEffect(() => {
     console.log('🔧 WebRTC manager exposed as window.webrtcManager');
   }
 }, [localStream, currentUser, currentRoom]);
+
+// Add this useEffect AFTER your existing useEffects
+useEffect(() => {
+    if (!webrtcManagerRef.current) return;
+    
+    console.log('🔗 Setting up WebRTC event handler...');
+    
+ 
+    const handleWebRTCEvent = (event: WebRTCEvent) => {
+        console.log('📡 WebRTC Event:', event.type, 'peerId' in event ? event.peerId : undefined);
+        
+        if (event.type === 'stream') {
+            if (event.stream) {
+                console.log(`🎬 Stream received for peer: ${event.peerId}`, {
+                    videoTracks: event.stream.getVideoTracks().length,
+                    audioTracks: event.stream.getAudioTracks().length
+                });
+            } else {
+                console.log(`❌ No stream received for peer: ${event.peerId}`);
+            }
+            
+            // Find which participant has this socketId
+            if (currentRoom?.participants) {
+                let found = false;
+                Array.from(currentRoom.participants.values()).forEach(participant => {
+                    if (participant.socketId === event.peerId) {
+                        console.log(`✅ Updating stream for ${participant.userName}`);
+                        updateParticipant(participant.id, { 
+                            stream: event.stream 
+                        });
+                        found = true;
+                    }
+                });
+                
+                if (!found) {
+                    console.log(`❌ No participant found with socketId: ${event.peerId}`);
+                    console.log('Available participants:', 
+                        Array.from(currentRoom.participants.values()).map(p => ({
+                            name: p.userName,
+                            socketId: p.socketId
+                        }))
+                    );
+                }
+            }
+        }
+    };
+    
+    webrtcManagerRef.current.onEvent(handleWebRTCEvent);
+    
+    return () => {
+        if (webrtcManagerRef.current) {
+            webrtcManagerRef.current.offEvent(handleWebRTCEvent);
+        }
+    };
+}, [currentRoom, updateParticipant]);
 
   /* -------------------------------- CREATE ROOM -------------------------------- */
 

@@ -20,6 +20,32 @@ export default function VideoTile({ user, isLocal = false, className }: VideoTil
         user.isVideoOn;
     const [isSpeaking, setIsSpeaking] = useState(false);
 
+    // Add this useEffect at the top of VideoTile
+useEffect(() => {
+    console.log(`🎥 VideoTile "${user.userName}" updated:`, {
+        hasStream: !!user.stream,
+        streamId: user.stream?.id,
+        videoTracks: user.stream?.getVideoTracks().length,
+        audioTracks: user.stream?.getAudioTracks().length,
+        videoEnabled: user.stream?.getVideoTracks()[0]?.enabled,
+        isLocal: isLocal
+    });
+    
+    if (videoRef.current && user.stream) {
+        console.log(`🎬 Setting video srcObject for ${user.userName}`);
+        videoRef.current.srcObject = user.stream;
+        
+        // Check if video actually plays
+        videoRef.current.onloadedmetadata = () => {
+            console.log(`✅ Video metadata loaded for ${user.userName}`);
+        };
+        
+        videoRef.current.onerror = (e) => {
+            console.error(`❌ Video error for ${user.userName}:`, e);
+        };
+    }
+}, [user.stream, user.userName, isLocal]);
+
     useEffect(() => {
         if (!videoRef.current || !user.stream) return;
 
