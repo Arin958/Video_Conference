@@ -5,6 +5,21 @@ import { useStore } from "../store/useStore";
 
 
 
+interface DebugInfo {
+  hasLocalStream: boolean;
+  localStreamTracks: number;
+  hasUser: boolean;
+  hasRoom: boolean;
+  hasManager: boolean;
+  participantsCount: number;
+}
+
+// Declare a global interface for debugging purposes
+declare global {
+  interface Window {
+    webrtcManager?: WebRTCManager;
+  }
+}
 
 export const useRoom = () => {
   const {
@@ -91,22 +106,53 @@ export const useRoom = () => {
     };
   }, []);
 
-      useEffect(() => {
-        if (localStream && currentUser && currentRoom && !webrtcManagerRef.current) {
-            console.log('🎥 Local stream ready, initializing WebRTC...');
-            webrtcManagerRef.current = new WebRTCManager(currentUser.id, currentRoom.id);
-            webrtcManagerRef.current.setLocalStream(localStream);
-            
-            // Connect to existing participants if guest
-            if (!currentUser.isHost) {
-                Array.from(currentRoom.participants.values()).forEach(participant => {
-                    if (participant.socketId) {
-                        webrtcManagerRef.current?.createPeer(participant.socketId, true);
-                    }
-                });
-            }
+
+useEffect(() => {
+  console.log('🔄 WebRTC Init Check:', {
+    hasLocalStream: !!localStream,
+    localStreamTracks: localStream?.getTracks().length || 0,
+    hasUser: !!currentUser,
+    hasRoom: !!currentRoom,
+    hasManager: !!webrtcManagerRef.current,
+    participantsCount: currentRoom?.participants.size || 0
+  } as DebugInfo);
+  
+  if (localStream && currentUser && currentRoom && !webrtcManagerRef.current) {
+    console.log('🎥 Local stream ready, initializing WebRTC...');
+    
+    // Create WebRTC manager
+    webrtcManagerRef.current = new WebRTCManager(currentUser.id, currentRoom.id);
+    console.log('✅ WebRTC Manager created');
+    
+    // Set the local stream
+    webrtcManagerRef.current.setLocalStream(localStream);
+    console.log('✅ Local stream set in WebRTC manager');
+    
+    // For guests: Connect to existing participants
+    if (!currentUser.isHost && currentRoom.participants.size > 0) {
+      console.log('👤 Guest: Found', currentRoom.participants.size, 'participants to connect to');
+      
+      Array.from(currentRoom.participants.values()).forEach((participant, index) => {
+        console.log(`👤 Participant ${index + 1}:`, {
+          name: participant.userName,
+          socketId: participant.socketId,
+          id: participant.id
+        });
+        
+        if (participant.socketId && participant.id !== currentUser.id) {
+          console.log(`🔗 Creating peer connection with ${participant.userName}...`);
+          webrtcManagerRef.current?.createPeer(participant.socketId, true);
         }
-    }, [localStream, currentUser, currentRoom]);
+      });
+    } else if (currentUser.isHost) {
+      console.log('🏠 Host: Waiting for guests to connect to me...');
+    }
+    
+    // For debugging in console - using type-safe window property
+    window.webrtcManager = webrtcManagerRef.current;
+    console.log('🔧 WebRTC manager exposed as window.webrtcManager');
+  }
+}, [localStream, currentUser, currentRoom]);
 
   /* -------------------------------- CREATE ROOM -------------------------------- */
 
