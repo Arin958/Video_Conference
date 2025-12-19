@@ -247,6 +247,7 @@ class SocketService {
 
   // WebRTC signaling methods
   sendWebRTCOffer(to: string, offer: RTCSessionDescriptionInit, from: string): void {
+    console.log("📤 SENDING OFFER", { to, from });
     this.socket?.emit('webrtc-offer', { to, offer, from });
   }
 

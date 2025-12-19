@@ -63,6 +63,7 @@ export class WebRTCManager {
     // Handle incoming WebRTC offers
     socketService.onWebRTCOffer(async ({ offer, from }) => {
       console.log('📨 Received WebRTC offer from:', from);
+      console.log("📤 SENDING OFFER", {offer, from });
 
       try {
         if (!this.peers.has(from)) {
@@ -106,6 +107,8 @@ export class WebRTCManager {
 
           if (socketId) {
             socketService.sendWebRTCAnswer(from, answer, socketId);
+          } else {
+            console.error('Socket ID not found');
           }
           // Send answer
 
@@ -270,6 +273,8 @@ export class WebRTCManager {
         if (socketId) {
 
           socketService.sendWebRTCIceCandidate(peerId, event.candidate.toJSON(), socketId);
+        } else {
+          console.error('Socket ID not found');
         }
       } else {
         console.log(`✅ ICE gathering complete for ${peerId}`);
@@ -401,6 +406,8 @@ export class WebRTCManager {
         if (socketId) {
 
           socketService.sendWebRTCOffer(peerId, offer, socketId);
+        } else {
+          console.error('Socket ID not found');
         }
       } catch (error) {
         console.error(`❌ Error creating offer for ${peerId}:`, error);
