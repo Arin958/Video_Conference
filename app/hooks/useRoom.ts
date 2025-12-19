@@ -208,7 +208,8 @@ useEffect(() => {
           isHost: false,
           isVideoOn: p.isVideoOn,
           isAudioOn: p.isAudioOn,
-          isScreenSharing: p.isScreenSharing ?? false
+          isScreenSharing: p.isScreenSharing ?? false,
+          socketId: p.socketId
         });
       });
 
