@@ -43,6 +43,8 @@ export class WebRTCManager {
     }
   }
 
+  
+
   // Add event listener
   onEvent(callback: (event: WebRTCEvent) => void) {
     this.eventListeners.push(callback);

@@ -112,19 +112,32 @@ export const useRoom = () => {
 
 
 useEffect(() => {
- console.log('🔄 WebRTC Init Check:', {
+  console.log('🔄 WebRTC Init Check:', {
     hasLocalStream: !!localStream,
     localStreamTracks: localStream?.getTracks().length || 0,
     hasUser: !!currentUser,
     hasRoom: !!currentRoom,
     hasManager: !!webrtcManagerRef.current,
     participantsCount: currentRoom?.participants.size || 0
-  } as DebugInfo);
-  
-  // 🔥 CRITICAL: Prevent double initialization
- if (webrtcManagerRef.current) return;
-if (!localStream || !currentUser || !currentRoom) return;
+  });
+
+  if (webrtcManagerRef.current) return;
+  if (!localStream || !currentUser || !currentRoom) return;
+
+  console.log("🔥 Creating WebRTCManager");
+
+  const manager = new WebRTCManager(
+      currentUser.id,
+  currentRoom.id
+  );
+
+  manager.setLocalStream(localStream);
+
+  webrtcManagerRef.current = manager;
+  window.webrtcManager = manager; // ✅ NO `any`
+
 }, [localStream, currentUser, currentRoom]);
+
 
 // Add this useEffect AFTER your existing useEffects
 useEffect(() => {
