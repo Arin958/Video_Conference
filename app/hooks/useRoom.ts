@@ -62,12 +62,13 @@ export const useRoom = () => {
             isHost: false,
             isVideoOn: user.isVideoOn,
             isAudioOn: user.isAudioOn,
-            isScreenSharing: user.isScreenSharing ?? false
+            isScreenSharing: user.isScreenSharing ?? false,
+            socketId: user.socketId
           });
 
           // ✅ HOST creates peer (NOT initiator)
           if (webrtcManagerRef.current) {
-            webrtcManagerRef.current.createPeer(user.socketId, false);
+            webrtcManagerRef.current.createPeer(user.socketId, true);
           }
         });
 
@@ -121,25 +122,8 @@ useEffect(() => {
   } as DebugInfo);
   
   // 🔥 CRITICAL: Prevent double initialization
-  const shouldCreate = localStream && currentUser && currentRoom && !webrtcManagerRef.current;
-  console.log('Should create WebRTC manager?', shouldCreate);
-  
-  if (shouldCreate) {
-    console.log('🎥 Local stream ready, initializing WebRTC...');
-    
-    // Create WebRTC manager
-    webrtcManagerRef.current = new WebRTCManager(currentUser.id, currentRoom.id);
-    console.log('✅ WebRTC Manager created');
-    
-    // Set the local stream
-    webrtcManagerRef.current.setLocalStream(localStream);
-    console.log('✅ Local stream set in WebRTC manager');
-    
-    // For debugging in console
-    window.webrtcManager = webrtcManagerRef.current;
-    console.log('🔧 WebRTC manager exposed as window.webrtcManager');
-    
-  }
+ if (webrtcManagerRef.current) return;
+if (!localStream || !currentUser || !currentRoom) return;
 }, [localStream, currentUser, currentRoom]);
 
 // Add this useEffect AFTER your existing useEffects
