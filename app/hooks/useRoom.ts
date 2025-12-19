@@ -111,7 +111,7 @@ export const useRoom = () => {
 
 
 useEffect(() => {
-  console.log('🔄 WebRTC Init Check:', {
+ console.log('🔄 WebRTC Init Check:', {
     hasLocalStream: !!localStream,
     localStreamTracks: localStream?.getTracks().length || 0,
     hasUser: !!currentUser,
@@ -120,7 +120,11 @@ useEffect(() => {
     participantsCount: currentRoom?.participants.size || 0
   } as DebugInfo);
   
-  if (localStream && currentUser && currentRoom && !webrtcManagerRef.current) {
+  // 🔥 CRITICAL: Prevent double initialization
+  const shouldCreate = localStream && currentUser && currentRoom && !webrtcManagerRef.current;
+  console.log('Should create WebRTC manager?', shouldCreate);
+  
+  if (shouldCreate) {
     console.log('🎥 Local stream ready, initializing WebRTC...');
     
     // Create WebRTC manager
@@ -131,29 +135,10 @@ useEffect(() => {
     webrtcManagerRef.current.setLocalStream(localStream);
     console.log('✅ Local stream set in WebRTC manager');
     
-    // For guests: Connect to existing participants
-    if (!currentUser.isHost && currentRoom.participants.size > 0) {
-      console.log('👤 Guest: Found', currentRoom.participants.size, 'participants to connect to');
-      
-      Array.from(currentRoom.participants.values()).forEach((participant, index) => {
-        console.log(`👤 Participant ${index + 1}:`, {
-          name: participant.userName,
-          socketId: participant.socketId,
-          id: participant.id
-        });
-        
-        if (participant.socketId && participant.id !== currentUser.id) {
-          console.log(`🔗 Creating peer connection with ${participant.userName}...`);
-          webrtcManagerRef.current?.createPeer(participant.socketId, true);
-        }
-      });
-    } else if (currentUser.isHost) {
-      console.log('🏠 Host: Waiting for guests to connect to me...');
-    }
-    
-    // For debugging in console - using type-safe window property
+    // For debugging in console
     window.webrtcManager = webrtcManagerRef.current;
     console.log('🔧 WebRTC manager exposed as window.webrtcManager');
+    
   }
 }, [localStream, currentUser, currentRoom]);
 
@@ -211,6 +196,8 @@ useEffect(() => {
         }
     };
 }, [currentRoom, updateParticipant]);
+// Add this RIGHT AFTER your existing useEffect
+
 
   /* -------------------------------- CREATE ROOM -------------------------------- */
 
@@ -230,7 +217,7 @@ useEffect(() => {
         hostId: res.userId
       });
 
-      
+        console.log('🏠 Host: Room created, waiting for local stream to init WebRTC...');
 
       return res;
     } finally {
