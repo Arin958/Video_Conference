@@ -250,9 +250,8 @@ export class WebRTCManager {
     if (isInitiator) {
       try {
         dataChannel = connection.createDataChannel('chat', {
-          ordered: true,
-          maxPacketLifeTime: 1000, // 1 second for reliable delivery
-          maxRetransmits: 3
+        ordered: false,
+        maxRetransmits: 0
         });
         console.log(`💬 Created data channel for ${peerId}`);
       } catch (error) {
