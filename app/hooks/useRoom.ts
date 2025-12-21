@@ -81,7 +81,6 @@ export const useRoom = () => {
 
   return () => {
     // ✅ ONLY disconnect socket here
-    socketService.disconnect();
   };
 }, []);
 
