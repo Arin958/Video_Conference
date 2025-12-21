@@ -16,13 +16,14 @@ export const useRoom = () => {
     localStream,
     isAudioOn,
     isVideoOn,
-
+    isLoading,
     setCurrentUser,
     setCurrentRoom,
     addParticipant,
     removeParticipant,
     updateParticipant,
     setLoading,
+    error,
     setError,
     resetRoom
   } = useStore();
@@ -165,10 +166,10 @@ export const useRoom = () => {
   /*                               JOIN ROOM                                     */
   /* -------------------------------------------------------------------------- */
 
-  const joinRoom = useCallback(async (roomId: string, userName: string) => {
+  const joinRoom = useCallback(async (roomId: string, userName: string, password?: string) => {
     setLoading(true);
     try {
-      const res = await socketService.joinRoom(roomId, userName);
+      const res = await socketService.joinRoom(roomId, userName, password);
 
       setCurrentUser({
         id: res.userId,
@@ -242,11 +243,12 @@ export const useRoom = () => {
     localStream,
     isVideoOn,
     isAudioOn,
-
+    isLoading,
     createRoom,
     joinRoom,
     leaveRoom,
-
+    error,
+    setError,
     toggleLocalVideo,
     toggleLocalAudio
   };
