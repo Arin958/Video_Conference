@@ -10,6 +10,7 @@ declare global {
 }
 
 export const useRoom = () => {
+  let webrtcManager: WebRTCManager | null = null;
   const {
     currentUser,
     currentRoom,
@@ -30,82 +31,85 @@ export const useRoom = () => {
     resetRoom
   } = useStore();
 
-  const webrtcManagerRef = useRef<WebRTCManager | null>(null);
+ ;
 
   /* -------------------------------------------------------------------------- */
   /*                               SOCKET SETUP                                 */
   /* -------------------------------------------------------------------------- */
 
-  useEffect(() => {
-    socketService.connect();
+  
 
-    socketService.onUserJoined((user) => {
-      console.log("👤 User joined:", user.userName);
+ useEffect(() => {
+  socketService.connect();
 
-      addParticipant(user.userId, {
-        id: user.userId,
-        userName: user.userName,
-        isHost: false,
-        isVideoOn: user.isVideoOn,
-        isAudioOn: user.isAudioOn,
-        isScreenSharing: false,
-        socketId: user.socketId
-      });
+  socketService.onUserJoined((user) => {
+    console.log("👤 User joined:", user.userName);
 
-      // 🔥 EXISTING USERS DO NOT CREATE OFFER
-      webrtcManagerRef.current?.createPeer(user.socketId, true);
+    addParticipant(user.userId, {
+      id: user.userId,
+      userName: user.userName,
+      isHost: false,
+      isVideoOn: user.isVideoOn,
+      isAudioOn: user.isAudioOn,
+      isScreenSharing: false,
+      socketId: user.socketId
     });
 
-    socketService.onUserLeft(({ userId, socketId }) => {
-      removeParticipant(userId);
-      webrtcManagerRef.current?.removePeer(socketId);
-    });
+    const mySocketId = socketService.getSocketId();
 
-    socketService.onMediaToggled("audio", ({ userId, state }) => {
-      updateParticipant(userId, { isAudioOn: state });
-    });
+    // ✅ IMPORTANT RULE:
+    // Existing users (host) DO NOT create offers here
+    // They only prepare peer to RECEIVE offer
+    if (webrtcManager && user.socketId !== mySocketId) {
+      console.log("🧩 Preparing peer for incoming offer:", user.userName);
+      webrtcManager.createPeer(user.socketId, false); // ❗ NOT initiator
+    }
+  });
 
-    socketService.onMediaToggled("video", ({ userId, state }) => {
-      updateParticipant(userId, { isVideoOn: state });
-    });
+  socketService.onUserLeft(({ userId, socketId }) => {
+    removeParticipant(userId);
+    webrtcManager?.removePeer(socketId);
+  });
 
-    return () => {
-      webrtcManagerRef.current?.cleanup();
-    };
-  }, []);
+  socketService.onMediaToggled("audio", ({ userId, state }) => {
+    updateParticipant(userId, { isAudioOn: state });
+  });
+
+  socketService.onMediaToggled("video", ({ userId, state }) => {
+    updateParticipant(userId, { isVideoOn: state });
+  });
+
+  return () => {
+    // ✅ ONLY disconnect socket here
+    socketService.disconnect();
+  };
+}, []);
+
 
   /* -------------------------------------------------------------------------- */
   /*                        WEBRTC MANAGER INITIALIZATION                        */
   /* -------------------------------------------------------------------------- */
 
   useEffect(() => {
-    if (webrtcManagerRef.current) return;
-    if (!localStream || !currentUser || !currentRoom) return;
+  if (!currentUser || !currentRoom || !localStream) return;
 
-    console.log("🔥 Creating WebRTCManager");
+  if (!webrtcManager) {
+    console.log("🔥 Creating WebRTCManager (singleton)");
 
-    const manager = new WebRTCManager(
-      currentUser.id,
+    webrtcManager = new WebRTCManager(
+      currentUser.socketId,
       currentRoom.id
     );
 
-    manager.setLocalStream(localStream);
+    webrtcManager.setLocalStream(localStream);
 
-    // 🔥 REGISTER EVENT LISTENER IMMEDIATELY
-    manager.onEvent((event: WebRTCEvent) => {
-      console.log("🎯 WebRTC Event:", event);
-
+    webrtcManager.onEvent((event: WebRTCEvent) => {
       if (event.type === "stream" && event.stream) {
-        const peerSocketId = event.peerId;
-
         const participant = Array.from(
           currentRoom.participants.values()
-        ).find(p => p.socketId === peerSocketId);
+        ).find(p => p.socketId === event.peerId);
 
-        if (!participant) {
-          console.warn("❌ No participant for socket:", peerSocketId);
-          return;
-        }
+        if (!participant) return;
 
         updateParticipant(participant.id, {
           stream: event.stream
@@ -113,30 +117,30 @@ export const useRoom = () => {
       }
     });
 
-    webrtcManagerRef.current = manager;
-    window.webrtcManager = manager;
-  }, [
-    !!localStream,
-    currentUser?.id,
-    currentRoom?.id
-  ]);
+    window.webrtcManager = webrtcManager;
+  } else {
+    // Update stream if camera was enabled later
+    webrtcManager.setLocalStream(localStream);
+  }
+}, [currentUser?.socketId, currentRoom?.id, localStream]);
+
 
   /* -------------------------------------------------------------------------- */
   /*                          GUEST → CREATE OFFERS                              */
   /* -------------------------------------------------------------------------- */
 
-  useEffect(() => {
-    if (!webrtcManagerRef.current || !currentRoom) return;
+useEffect(() => {
+  if (!webrtcManager || !currentRoom) return;
 
-    const mySocketId = socketService.getSocketId();
+  const mySocketId = socketService.getSocketId();
 
-    currentRoom.participants.forEach((p) => {
-      if (p.socketId && p.socketId !== mySocketId) {
-        console.log("📤 Guest creating offer to:", p.userName);
-        webrtcManagerRef.current!.createPeer(p.socketId, true);
-      }
-    });
-  }, [currentRoom?.id]);
+  currentRoom.participants.forEach((p) => {
+    if (p.socketId && p.socketId !== mySocketId) {
+      console.log("📤 Guest creating offer to:", p.userName);
+      webrtcManager?.createPeer(p.socketId, true);
+    }
+  });
+}, [currentRoom?.id]);
 
   /* -------------------------------------------------------------------------- */
   /*                              CREATE ROOM                                    */
@@ -233,14 +237,16 @@ export const useRoom = () => {
   /*                                LEAVE ROOM                                   */
   /* -------------------------------------------------------------------------- */
 
-  const leaveRoom = useCallback(() => {
-    if (currentUser && currentRoom) {
-      socketService.leaveRoom(currentRoom.id, currentUser.id);
-    }
+const leaveRoom = useCallback(() => {
+  if (currentUser && currentRoom) {
+    socketService.leaveRoom(currentRoom.id, currentUser.id);
+  }
 
-    webrtcManagerRef.current?.cleanup();
-    resetRoom();
-  }, [currentUser, currentRoom]);
+  webrtcManager?.cleanup();
+  webrtcManager = null; // 🔥 RESET SINGLETON
+
+  resetRoom();
+}, [currentUser, currentRoom]);
 
   return {
     currentUser,
