@@ -1,28 +1,13 @@
 import { useCallback, useEffect, useRef } from "react";
-import { WebRTCManager } from "@/lib/webrtc";
+import { WebRTCManager, WebRTCEvent } from "@/lib/webrtc";
 import { socketService } from "@/lib/socket";
 import { useStore } from "../store/useStore";
 
-
-
-interface DebugInfo {
-  hasLocalStream: boolean;
-  localStreamTracks: number;
-  hasUser: boolean;
-  hasRoom: boolean;
-  hasManager: boolean;
-  participantsCount: number;
-}
-
-// Declare a global interface for debugging purposes
 declare global {
   interface Window {
     webrtcManager?: WebRTCManager;
   }
 }
-
-  // Remove local WebRTCEvent interface and import from webrtc lib
-  import type { WebRTCEvent } from "@/lib/webrtc";
 
 export const useRoom = () => {
   const {
@@ -31,10 +16,9 @@ export const useRoom = () => {
     localStream,
     isAudioOn,
     isVideoOn,
-    isScreenSharing,
+
     setCurrentUser,
     setCurrentRoom,
-  
     addParticipant,
     removeParticipant,
     updateParticipant,
@@ -45,158 +29,115 @@ export const useRoom = () => {
 
   const webrtcManagerRef = useRef<WebRTCManager | null>(null);
 
-  /* -------------------------------- SOCKET INIT -------------------------------- */
+  /* -------------------------------------------------------------------------- */
+  /*                               SOCKET SETUP                                 */
+  /* -------------------------------------------------------------------------- */
 
   useEffect(() => {
-    const initSocket = async () => {
-      try {
-        await socketService.connect();
+    socketService.connect();
 
-        /* 🔥 USER JOINED */
-        socketService.onUserJoined((user) => {
-          console.log("👤 User joined:", user.userName);
+    socketService.onUserJoined((user) => {
+      console.log("👤 User joined:", user.userName);
 
-          addParticipant(user.userId, {
-            id: user.userId,
-            userName: user.userName,
-            isHost: false,
-            isVideoOn: user.isVideoOn,
-            isAudioOn: user.isAudioOn,
-            isScreenSharing: user.isScreenSharing ?? false,
-            socketId: user.socketId
-          });
+      addParticipant(user.userId, {
+        id: user.userId,
+        userName: user.userName,
+        isHost: false,
+        isVideoOn: user.isVideoOn,
+        isAudioOn: user.isAudioOn,
+        isScreenSharing: false,
+        socketId: user.socketId
+      });
 
-          // ✅ HOST creates peer (NOT initiator)
-          if (webrtcManagerRef.current) {
-            webrtcManagerRef.current.createPeer(user.socketId, true);
-          }
-        });
+      // 🔥 EXISTING USERS DO NOT CREATE OFFER
+      webrtcManagerRef.current?.createPeer(user.socketId, false);
+    });
 
-        /* 🔥 USER LEFT */
-        socketService.onUserLeft(({ userId, socketId }) => {
-          removeParticipant(userId);
-          webrtcManagerRef.current?.removePeer(socketId);
-        });
+    socketService.onUserLeft(({ userId, socketId }) => {
+      removeParticipant(userId);
+      webrtcManagerRef.current?.removePeer(socketId);
+    });
 
-        /* 🔊 AUDIO TOGGLE */
-        socketService.onMediaToggled("audio", (data) => {
-          updateParticipant(data.userId, { isAudioOn: data.state });
-        });
+    socketService.onMediaToggled("audio", ({ userId, state }) => {
+      updateParticipant(userId, { isAudioOn: state });
+    });
 
-        /* 🎥 VIDEO TOGGLE */
-        socketService.onMediaToggled("video", (data) => {
-          updateParticipant(data.userId, { isVideoOn: data.state });
-        });
-
-        // /* 🖥 SCREEN SHARE */
-        // socketService.onMediaToggled("screen-share-start", ({ userId }) => {
-        //   updateParticipant(userId, { isScreenSharing: true });
-        // });
-
-        // socketService.onMediaToggled("screen-share-stop", ({ userId }) => {
-        //   updateParticipant(userId, { isScreenSharing: false });
-        // });
-
-      } catch (err) {
-        console.error("Socket error:", err);
-        setError("Failed to connect to server");
-      }
-    };
-
-    initSocket();
+    socketService.onMediaToggled("video", ({ userId, state }) => {
+      updateParticipant(userId, { isVideoOn: state });
+    });
 
     return () => {
       webrtcManagerRef.current?.cleanup();
     };
   }, []);
 
+  /* -------------------------------------------------------------------------- */
+  /*                        WEBRTC MANAGER INITIALIZATION                        */
+  /* -------------------------------------------------------------------------- */
 
-useEffect(() => {
-  console.log('🔄 WebRTC Init Check:', {
-    hasLocalStream: !!localStream,
-    localStreamTracks: localStream?.getTracks().length || 0,
-    hasUser: !!currentUser,
-    hasRoom: !!currentRoom,
-    hasManager: !!webrtcManagerRef.current,
-    participantsCount: currentRoom?.participants.size || 0
-  });
+  useEffect(() => {
+    if (webrtcManagerRef.current) return;
+    if (!localStream || !currentUser || !currentRoom) return;
 
-  if (webrtcManagerRef.current) return;
-  if (!localStream || !currentUser || !currentRoom) return;
+    console.log("🔥 Creating WebRTCManager");
 
-  console.log("🔥 Creating WebRTCManager");
-
-  const manager = new WebRTCManager(
+    const manager = new WebRTCManager(
       currentUser.id,
-  currentRoom.id
-  );
+      currentRoom.id
+    );
 
-  manager.setLocalStream(localStream);
+    manager.setLocalStream(localStream);
 
-  webrtcManagerRef.current = manager;
-  window.webrtcManager = manager; // ✅ NO `any`
+    // 🔥 REGISTER EVENT LISTENER IMMEDIATELY
+    manager.onEvent((event: WebRTCEvent) => {
+      console.log("🎯 WebRTC Event:", event);
 
-}, [localStream, currentUser, currentRoom]);
+      if (event.type === "stream" && event.stream) {
+        const peerSocketId = event.peerId;
 
+        const participant = Array.from(
+          currentRoom.participants.values()
+        ).find(p => p.socketId === peerSocketId);
 
-// Add this useEffect AFTER your existing useEffects
-useEffect(() => {
-    if (!webrtcManagerRef.current) return;
-    
-    console.log('🔗 Setting up WebRTC event handler...');
-    
- 
-    const handleWebRTCEvent = (event: WebRTCEvent) => {
-        console.log('📡 WebRTC Event:', event.type, 'peerId' in event ? event.peerId : undefined);
-        
-        if (event.type === 'stream') {
-            if (event.stream) {
-                console.log(`🎬 Stream received for peer: ${event.peerId}`, {
-                    videoTracks: event.stream.getVideoTracks().length,
-                    audioTracks: event.stream.getAudioTracks().length
-                });
-            } else {
-                console.log(`❌ No stream received for peer: ${event.peerId}`);
-            }
-            
-            // Find which participant has this socketId
-            if (currentRoom?.participants) {
-                let found = false;
-                Array.from(currentRoom.participants.values()).forEach(participant => {
-                    if (participant.socketId === event.peerId) {
-                        console.log(`✅ Updating stream for ${participant.userName}`);
-                        updateParticipant(participant.id, { 
-                            stream: event.stream 
-                        });
-                        found = true;
-                    }
-                });
-                
-                if (!found) {
-                    console.log(`❌ No participant found with socketId: ${event.peerId}`);
-                    console.log('Available participants:', 
-                        Array.from(currentRoom.participants.values()).map(p => ({
-                            name: p.userName,
-                            socketId: p.socketId
-                        }))
-                    );
-                }
-            }
+        if (!participant) {
+          console.warn("❌ No participant for socket:", peerSocketId);
+          return;
         }
-    };
-    
-    webrtcManagerRef.current.onEvent(handleWebRTCEvent);
-    
-    return () => {
-        if (webrtcManagerRef.current) {
-            webrtcManagerRef.current.offEvent(handleWebRTCEvent);
-        }
-    };
-}, [currentRoom, updateParticipant]);
-// Add this RIGHT AFTER your existing useEffect
 
+        updateParticipant(participant.id, {
+          stream: event.stream
+        });
+      }
+    });
 
-  /* -------------------------------- CREATE ROOM -------------------------------- */
+    webrtcManagerRef.current = manager;
+    window.webrtcManager = manager;
+  }, [
+    !!localStream,
+    currentUser?.id,
+    currentRoom?.id
+  ]);
+
+  /* -------------------------------------------------------------------------- */
+  /*                          GUEST → CREATE OFFERS                              */
+  /* -------------------------------------------------------------------------- */
+
+  useEffect(() => {
+    if (!webrtcManagerRef.current || !currentRoom) return;
+
+    const mySocketId = socketService.getSocketId();
+
+    currentRoom.participants.forEach((p) => {
+      if (p.socketId && p.socketId !== mySocketId) {
+        console.log("📤 Guest creating offer to:", p.userName);
+        webrtcManagerRef.current!.createPeer(p.socketId, true);
+      }
+    });
+  }, [currentRoom?.id]);
+
+  /* -------------------------------------------------------------------------- */
+  /*                              CREATE ROOM                                    */
+  /* -------------------------------------------------------------------------- */
 
   const createRoom = useCallback(async (userName: string, roomId: string) => {
     setLoading(true);
@@ -214,20 +155,20 @@ useEffect(() => {
         hostId: res.userId
       });
 
-        console.log('🏠 Host: Room created, waiting for local stream to init WebRTC...');
-
       return res;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  /* -------------------------------- JOIN ROOM -------------------------------- */
+  /* -------------------------------------------------------------------------- */
+  /*                               JOIN ROOM                                     */
+  /* -------------------------------------------------------------------------- */
 
-  const joinRoom = useCallback(async (roomId: string, userName: string,password?: string) => {
+  const joinRoom = useCallback(async (roomId: string, userName: string) => {
     setLoading(true);
     try {
-      const res = await socketService.joinRoom(roomId, userName, password);
+      const res = await socketService.joinRoom(roomId, userName);
 
       setCurrentUser({
         id: res.userId,
@@ -240,9 +181,6 @@ useEffect(() => {
         hostId: res.hostId
       });
 
-     
-
-      /* ✅ ADD EXISTING PARTICIPANTS */
       res.participants.forEach((p) => {
         addParticipant(p.userId, {
           id: p.userId,
@@ -250,14 +188,9 @@ useEffect(() => {
           isHost: false,
           isVideoOn: p.isVideoOn,
           isAudioOn: p.isAudioOn,
-          isScreenSharing: p.isScreenSharing ?? false,
+          isScreenSharing: false,
           socketId: p.socketId
         });
-      });
-
-      /* ✅ GUEST CREATES PEERS (initiator = true) */
-      res.participants.forEach((p) => {
-        webrtcManagerRef.current?.createPeer(p.socketId, true);
       });
 
       return res;
@@ -266,7 +199,9 @@ useEffect(() => {
     }
   }, []);
 
-  /* -------------------------------- MEDIA CONTROLS -------------------------------- */
+  /* -------------------------------------------------------------------------- */
+  /*                               MEDIA CONTROLS                                */
+  /* -------------------------------------------------------------------------- */
 
   const toggleLocalVideo = useCallback(() => {
     if (!localStream || !currentUser || !currentRoom) return;
@@ -275,8 +210,6 @@ useEffect(() => {
     if (!track) return;
 
     track.enabled = !isVideoOn;
-    useStore.getState().toggleVideo();
-
     socketService.toggleVideo(currentRoom.id, currentUser.id, !isVideoOn);
   }, [localStream, isVideoOn, currentUser, currentRoom]);
 
@@ -287,12 +220,12 @@ useEffect(() => {
     if (!track) return;
 
     track.enabled = !isAudioOn;
-    useStore.getState().toggleAudio();
-
     socketService.toggleAudio(currentRoom.id, currentUser.id, !isAudioOn);
   }, [localStream, isAudioOn, currentUser, currentRoom]);
 
-  /* -------------------------------- LEAVE ROOM -------------------------------- */
+  /* -------------------------------------------------------------------------- */
+  /*                                LEAVE ROOM                                   */
+  /* -------------------------------------------------------------------------- */
 
   const leaveRoom = useCallback(() => {
     if (currentUser && currentRoom) {
@@ -306,14 +239,10 @@ useEffect(() => {
   return {
     currentUser,
     currentRoom,
+    localStream,
     isVideoOn,
     isAudioOn,
-    isScreenSharing,
-     isLoading: useStore((state) => state.isLoading),
-  error: useStore((state) => state.error),
-  setError: useStore((state) => state.setError),
-   localStream: useStore((state) => state.localStream),
-   setLocalStream: useStore((state) => state.setLocalStream),
+
     createRoom,
     joinRoom,
     leaveRoom,

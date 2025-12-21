@@ -294,12 +294,13 @@ export class WebRTCManager {
 
     // Track handler for incoming media
     connection.ontrack = (event) => {
-      console.log(`🎬 ONTRACK from ${peerId}:`, {
-        kind: event.track.kind,
-        id: event.track.id,
-        streams: event.streams.length,
-        readyState: event.track.readyState
-      });
+    console.log('🔥 ONTRACK FIRED 🔥', {
+    peerId,
+    trackKind: event.track.kind,
+    streamCount: event.streams.length,
+    streamId: event.streams[0]?.id
+  });
+
 
       const peer = this.peers.get(peerId);
       if (peer) {
@@ -314,6 +315,8 @@ export class WebRTCManager {
           peer.stream.addTrack(event.track);
         }
 
+        console.log('📦 Peer stream tracks:', peer.stream?.getTracks().map(t => t.kind));
+
         // Emit stream event
         this.emitEvent({
           type: 'stream',
@@ -322,6 +325,7 @@ export class WebRTCManager {
         });
 
         console.log(`✅ Stream updated for ${peerId}, total tracks: ${peer.stream.getTracks().length}`);
+        console.log('📡 Stream event emitted for', peerId);
       }
 
       // Monitor track state
