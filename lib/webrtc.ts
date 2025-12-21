@@ -193,6 +193,10 @@ export class WebRTCManager {
 
   async createPeer(peerId: string, isInitiator: boolean): Promise<PeerConnection> {
     console.log(`🔗 CREATE_PEER: ${peerId}, initiator: ${isInitiator}`);
+    if (this.peers.has(peerId)) {
+  console.log(`⚠️ Peer already exists: ${peerId}`);
+  return this.peers.get(peerId)!;
+}
 
     // Check if peer already exists AND is in a valid state
     const existingPeer = this.peers.get(peerId);

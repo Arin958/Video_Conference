@@ -53,7 +53,7 @@ export const useRoom = () => {
       });
 
       // 🔥 EXISTING USERS DO NOT CREATE OFFER
-      webrtcManagerRef.current?.createPeer(user.socketId, false);
+      webrtcManagerRef.current?.createPeer(user.socketId, true);
     });
 
     socketService.onUserLeft(({ userId, socketId }) => {
