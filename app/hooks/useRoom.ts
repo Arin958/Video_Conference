@@ -150,7 +150,8 @@ export const useRoom = () => {
       setCurrentUser({
         id: res.userId,
         userName,
-        isHost: true
+        isHost: true,
+        socketId: socketService.getSocketId()!
       });
 
       setCurrentRoom({
@@ -176,7 +177,8 @@ export const useRoom = () => {
       setCurrentUser({
         id: res.userId,
         userName,
-        isHost: false
+        isHost: false,
+        socketId: socketService.getSocketId()!
       });
 
       setCurrentRoom({
@@ -187,12 +189,13 @@ export const useRoom = () => {
       res.participants.forEach((p) => {
         addParticipant(p.userId, {
           id: p.userId,
+          socketId: p.socketId,
           userName: p.userName,
           isHost: false,
           isVideoOn: p.isVideoOn,
           isAudioOn: p.isAudioOn,
           isScreenSharing: false,
-          socketId: p.socketId
+        
         });
       });
 

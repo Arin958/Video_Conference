@@ -14,6 +14,7 @@ export default function VideoGrid() {
     const participants: Array<{
       id: string;
       userName: string;
+      socketId: string;
       isHost: boolean;
       isVideoOn: boolean;
       isAudioOn: boolean;
@@ -28,7 +29,8 @@ export default function VideoGrid() {
         isVideoOn: useStore.getState().isVideoOn,
         isAudioOn: useStore.getState().isAudioOn,
         isScreenSharing: useStore.getState().isScreenSharing,
-        stream: localStream || undefined
+        stream: localStream || undefined,
+        
       });
     }
 

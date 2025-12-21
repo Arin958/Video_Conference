@@ -27,6 +27,7 @@ interface AppState {
   currentUser: {
     id: string;
     userName: string;
+    socketId: string;
     isHost: boolean;
   } | null;
 
@@ -53,7 +54,7 @@ interface AppState {
   error: string | null;
 
   // Actions
-  setCurrentUser: (user: { id: string; userName: string; isHost: boolean }) => void;
+  setCurrentUser: (user: { id: string; userName: string; isHost: boolean; socketId: string }) => void;
   setCurrentRoom: (room: { id: string; hostId: string; isLocked?: boolean }) => void;
   setLocalStream: (stream: MediaStream | null) => void;
   setScreenStream: (stream: MediaStream | null) => void;
