@@ -31,6 +31,19 @@ export class WebRTCManager {
 
   // Event emitter system
   private eventListeners: Array<(event: WebRTCEvent) => void> = [];
+  private async flushPendingIce(peer: PeerConnection) {
+  if (!peer.pendingCandidates?.length) return;
+
+  console.log(`🧊 Flushing ${peer.pendingCandidates.length} pending ICE candidates`);
+
+  for (const c of peer.pendingCandidates) {
+    if (c) {
+      await peer.connection.addIceCandidate(new RTCIceCandidate(c));
+    }
+  }
+
+  peer.pendingCandidates = [];
+}
 
   constructor(userId: string, roomId: string) {
     this.userId = userId;
@@ -84,6 +97,7 @@ export class WebRTCManager {
             if (connection.signalingState === 'have-local-offer') {
               // Option 1: Reject the incoming offer (more common)
               console.log('Already made an offer to this peer, ignoring incoming offer');
+                await connection.setLocalDescription({ type: 'rollback' });
               return;
 
               // Option 2: Roll back and accept incoming offer
@@ -96,10 +110,17 @@ export class WebRTCManager {
               return;
             }
           }
-
+  
           // Set remote description
           await connection.setRemoteDescription(new RTCSessionDescription(offer));
+          await this.flushPendingIce(peer);
           console.log('✅ Remote description set');
+          if (peer.pendingCandidates?.length) {
+  console.log(`🧊 Applying ${peer.pendingCandidates.length} pending ICE candidates`);
+
+
+  peer.pendingCandidates = [];
+}
 
           // Create and set local description
           const answer = await connection.createAnswer();
@@ -137,6 +158,7 @@ export class WebRTCManager {
           // Only set remote description if we're expecting an answer
           if (connection.signalingState === 'have-local-offer') {
             await connection.setRemoteDescription(new RTCSessionDescription(answer));
+            await this.flushPendingIce(peer);
             console.log('✅ Answer processed');
           } else {
             console.log(`⚠️ Unexpected answer in state: ${connection.signalingState}`);
@@ -144,6 +166,7 @@ export class WebRTCManager {
             // Handle late answer - still try to set it
             if (connection.remoteDescription === null) {
               await connection.setRemoteDescription(new RTCSessionDescription(answer));
+              await this.flushPendingIce(peer);
             }
           }
         } catch (error) {
@@ -153,33 +176,19 @@ export class WebRTCManager {
     });
 
     // Handle ICE candidates
-    socketService.onWebRTCIceCandidate(async ({ candidate, from }) => {
-      console.log('📨 Received ICE candidate from:', from);
+   socketService.onWebRTCIceCandidate(async ({ candidate, from }) => {
+    console.log('📨 Received ICE candidate from:', from);
+  const peer = this.peers.get(from);
+  if (!peer) return;
 
-      const peer = this.peers.get(from);
-      if (peer && peer.connection) {
-        try {
-          if (candidate) {
-            await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));
-            console.log('✅ ICE candidate added');
-          } else {
-            // null candidate means end of candidates
-            console.log('📬 End of ICE candidates received');
-            await peer.connection.addIceCandidate(null);
-          }
-        } catch (error) {
-          // Ignore errors for late candidates (common and expected)
-          if (!peer.connection.remoteDescription) {
-            console.log('⚠️ Late ICE candidate, storing for later');
-            // Store candidate for later
-            peer.pendingCandidates = peer.pendingCandidates || [];
-            peer.pendingCandidates.push(candidate);
-          } else {
-            console.error('Error adding ICE candidate:', error);
-          }
-        }
-      }
-    });
+  if (!peer.connection.remoteDescription) {
+    peer.pendingCandidates ??= [];
+    peer.pendingCandidates.push(candidate);
+    return;
+  }
+
+  await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));
+});
   }
 
   async createPeer(peerId: string, isInitiator: boolean): Promise<PeerConnection> {
@@ -377,9 +386,6 @@ export class WebRTCManager {
         await new Promise(resolve => setTimeout(resolve, 100));
 
         const offer = await connection.createOffer({
-          offerToReceiveAudio: true,
-          offerToReceiveVideo: true,
-          iceRestart: false
         });
 
         // Set codec preferences if needed (optional)
