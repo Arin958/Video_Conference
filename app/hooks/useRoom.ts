@@ -17,6 +17,7 @@ export const useRoom = () => {
     isAudioOn,
     isVideoOn,
     isLoading,
+    setLocalStream,
     setCurrentUser,
     setCurrentRoom,
     addParticipant,
@@ -24,6 +25,7 @@ export const useRoom = () => {
     updateParticipant,
     setLoading,
     error,
+  
     setError,
     resetRoom
   } = useStore();
@@ -247,6 +249,7 @@ export const useRoom = () => {
     createRoom,
     joinRoom,
     leaveRoom,
+    setLocalStream,
     error,
     setError,
     toggleLocalVideo,

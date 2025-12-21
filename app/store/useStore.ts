@@ -11,7 +11,7 @@ export interface User {
   isAudioOn: boolean;
   isScreenSharing: boolean;
   stream?: MediaStream;
-  socketId?: string;
+  socketId: string;
 }
 
 export interface Room {

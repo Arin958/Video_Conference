@@ -13,6 +13,7 @@ interface VideoTileProps {
 }
 
 export default function VideoTile({ user, isLocal = false, className }: VideoTileProps) {
+    
     const videoRef = useRef<HTMLVideoElement>(null);
     const hasVideo =
         !!user.stream?.getVideoTracks()[0] &&
