@@ -1,7 +1,6 @@
-// frontend/src/components/video/VideoGrid.tsx
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import VideoTile from './VideoTile';
 import { useStore } from '@/app/store/useStore';
 import { cn } from '@/lib/utils';
@@ -9,49 +8,47 @@ import { cn } from '@/lib/utils';
 export default function VideoGrid() {
   const { currentRoom, currentUser, localStream } = useStore();
 
-  // Get all participants including local user
-  const allParticipants = useMemo(() => {
-    const participants: Array<{
-      id: string;
-      userName: string;
-      socketId: string;
-      isHost: boolean;
-      isVideoOn: boolean;
-      isAudioOn: boolean;
-      isScreenSharing: boolean;
-      stream?: MediaStream;
-    }> = [];
+  // Get all participants including local user WITHOUT DUPLICATES
+  // Extract complex store state values to variables for dependency tracking
+  const isVideoOn = useStore(state => state.isVideoOn);
+  const isAudioOn = useStore(state => state.isAudioOn);
+  const isScreenSharing = useStore(state => state.isScreenSharing);
 
-    // Add local user
+  const allParticipants = useMemo(() => {
+    const participants = [];
+
+    // Add local user FIRST (with local stream)
     if (currentUser) {
       participants.push({
         ...currentUser,
-        isVideoOn: useStore.getState().isVideoOn,
-        isAudioOn: useStore.getState().isAudioOn,
-        isScreenSharing: useStore.getState().isScreenSharing,
+        isVideoOn,
+        isAudioOn,
+        isScreenSharing,
         stream: localStream || undefined,
-        
       });
     }
 
-    // Add remote participants
+    // Add remote participants ONLY (exclude current user)
     if (currentRoom) {
       Array.from(currentRoom.participants.values()).forEach(participant => {
-        participants.push(participant);
+        // ⚠️ CRITICAL: Don't add the current user again
+        if (participant.id !== currentUser?.id && participant.socketId !== currentUser?.socketId) {
+          participants.push(participant);
+        }
       });
     }
 
-        console.log("🎬 VideoGrid participants:", participants.map(p => ({
+    // Debug: Log what we're returning
+    console.log("🎬 VideoGrid FINAL participants:", participants.map(p => ({
       name: p.userName,
+      id: p.id,
       isLocal: p.id === currentUser?.id,
       hasStream: !!p.stream,
-      streamId: p.stream?.id,
-      tracks: p.stream?.getTracks().map(t => t.kind)
+      socketId: p.socketId
     })));
 
-
     return participants;
-  }, [currentUser, currentRoom, localStream]);
+  }, [currentUser, currentRoom, localStream, isVideoOn, isAudioOn, isScreenSharing]);
 
   // Calculate grid layout based on participant count
   const gridClasses = useMemo(() => {
@@ -64,20 +61,6 @@ export default function VideoGrid() {
     if (count <= 9) return 'grid-cols-3 md:grid-cols-4 lg:grid-cols-9';
     return 'grid-cols-4 md:grid-cols-6 lg:grid-cols-9';
   }, [allParticipants.length]);
-
-  useEffect(() => {
-  console.log("📊 VideoGrid DEBUG:", {
-    totalParticipants: allParticipants.length,
-    participants: allParticipants.map(p => ({
-      name: p.userName,
-      id: p.id,
-      isLocal: p.id === currentUser?.id,
-      hasStream: !!p.stream,
-      streamTracks: p.stream?.getTracks().map(t => t.kind),
-      isVideoOn: p.isVideoOn
-    }))
-  });
-}, [allParticipants, currentUser]);
 
   if (allParticipants.length === 0) {
     return (
@@ -110,7 +93,7 @@ export default function VideoGrid() {
     )}>
       {allParticipants.map((participant, index) => (
         <VideoTile
-          key={participant.id}
+          key={participant.id + (participant.id === currentUser?.id ? '_local' : '_remote')}
           user={participant}
           isLocal={participant.id === currentUser?.id}
           className={cn(

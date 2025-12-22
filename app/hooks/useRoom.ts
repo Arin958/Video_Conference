@@ -50,6 +50,8 @@ export const useRoom = () => {
         fullEvent: user
     });
 
+    
+
     // Check current store state BEFORE update
     const currentState = useStore.getState();
     console.log("📊 Store BEFORE update:", {
