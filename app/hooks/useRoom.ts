@@ -137,17 +137,39 @@ useEffect(() => {
   /* -------------------------------------------------------------------------- */
 
 useEffect(() => {
-  if (!webrtcManagerRef.current || !currentRoom) return;
+  console.log("🎯 GUEST OFFER EFFECT", {
+    hasManager: !!webrtcManagerRef.current,
+    currentRoomId: currentRoom?.id,
+    isHost: currentUser?.isHost,
+    participantCount: currentRoom?.participants?.size,
+    mySocketId: socketService.getSocketId()
+  });
+
+  // Only guests create offers
+  if (currentUser?.isHost) {
+    console.log("⏸️ Skipping - I'm the host");
+    return;
+  }
+
+  if (!webrtcManagerRef.current || !currentRoom) {
+    console.log("⏸️ Missing manager or room");
+    return;
+  }
 
   const mySocketId = socketService.getSocketId();
+  console.log("👥 Participants to connect to:", 
+    Array.from(currentRoom.participants.values())
+      .filter(p => p.socketId !== mySocketId)
+      .map(p => p.userName)
+  );
 
   currentRoom.participants.forEach((p) => {
     if (p.socketId && p.socketId !== mySocketId) {
-      console.log("📤 Guest creating offer to:", p.userName);
+      console.log("🚀 Creating offer to", p.userName);
       webrtcManagerRef.current?.createPeer(p.socketId, true);
     }
   });
-}, [currentRoom?.id]);
+}, [currentRoom?.id, currentUser?.isHost]); // Add currentUser?.isHost to dependencies
 
   /* -------------------------------------------------------------------------- */
   /*                              CREATE ROOM                                    */
