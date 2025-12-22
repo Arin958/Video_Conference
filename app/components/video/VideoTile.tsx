@@ -31,6 +31,8 @@ useEffect(() => {
         videoEnabled: user.stream?.getVideoTracks()[0]?.enabled,
         isLocal: isLocal
     });
+
+
     
     if (videoRef.current && user.stream) {
         console.log(`🎬 Setting video srcObject for ${user.userName}`);
@@ -53,6 +55,13 @@ useEffect(() => {
         videoRef.current.srcObject = user.stream;
 
         if (!isLocal) {
+            console.log(`🔊 Audio check for ${user.userName}:`, {
+  hasAudioTrack: user.stream?.getAudioTracks().length > 0,
+  audioTrackEnabled: user.stream?.getAudioTracks()[0]?.enabled,
+  audioTrackReadyState: user.stream?.getAudioTracks()[0]?.readyState,
+  isLocal: isLocal,
+  videoElementMuted: videoRef.current?.muted
+});
             const audioTrack = user.stream.getAudioTracks()[0];
             if (!audioTrack) return;
 

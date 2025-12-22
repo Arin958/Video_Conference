@@ -143,6 +143,15 @@ useEffect(() => {
       return;
     }
 
+     const currentTracks = participant.stream?.getTracks().map(t => t.id).sort() || [];
+    const newTracks = event.stream.getTracks().map(t => t.id).sort();
+    const tracksChanged = JSON.stringify(currentTracks) !== JSON.stringify(newTracks);
+
+        if (!tracksChanged && participant.stream?.id === event.stream.id) {
+      console.log("⏸️ Stream unchanged, skipping update");
+      return;
+    }
+
     console.log("✅ Found participant:", participant.userName);
     
     // Check if stream is already the same
