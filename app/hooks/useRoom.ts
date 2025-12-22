@@ -115,19 +115,49 @@ useEffect(() => {
     webrtcManagerRef.current.setLocalStream(localStream);
 
     // 3. Setup event handler
-    webrtcManagerRef.current.onEvent((event: WebRTCEvent) => {
-      if (event.type === "stream" && event.stream) {
-        const participant = Array.from(
-          currentRoom.participants.values()
-        ).find(p => p.socketId === event.peerId);
-
-        if (!participant) return;
-
-        updateParticipant(participant.id, {
-          stream: event.stream
-        });
-      }
+ webrtcManagerRef.current.onEvent((event: WebRTCEvent) => {
+  if (event.type === "stream" && event.stream) {
+    console.log("📡 STREAM EVENT:", {
+      peerSocketId: event.peerId,
+      streamId: event.stream.id,
+      tracks: event.stream.getTracks().map(t => ({
+        kind: t.kind,
+        enabled: t.enabled,
+        id: t.id
+      }))
     });
+
+    // Debug: Log all participants to find matching socketId
+    const allParticipants = Array.from(currentRoom.participants.values());
+    console.log("🔍 Searching for participant with socketId:", event.peerId);
+    console.log("Available participants:", allParticipants.map(p => ({
+      name: p.userName,
+      userId: p.id,
+      socketId: p.socketId
+    })));
+
+    const participant = allParticipants.find(p => p.socketId === event.peerId);
+    
+    if (!participant) {
+      console.error("❌ NO MATCHING PARTICIPANT FOUND!");
+      return;
+    }
+
+    console.log("✅ Found participant:", participant.userName);
+    
+    // Check if stream is already the same
+    if (participant.stream?.id === event.stream.id) {
+      console.log("⏸️ Stream already set, skipping");
+      return;
+    }
+
+    updateParticipant(participant.id, {
+      stream: event.stream
+    });
+    
+    console.log("✅ Participant updated with stream");
+  }
+});
 
 
       /* -------------------------------------------------------------------------- */

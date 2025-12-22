@@ -1,7 +1,7 @@
 // frontend/src/components/video/VideoGrid.tsx
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import VideoTile from './VideoTile';
 import { useStore } from '@/app/store/useStore';
 import { cn } from '@/lib/utils';
@@ -41,6 +41,15 @@ export default function VideoGrid() {
       });
     }
 
+        console.log("🎬 VideoGrid participants:", participants.map(p => ({
+      name: p.userName,
+      isLocal: p.id === currentUser?.id,
+      hasStream: !!p.stream,
+      streamId: p.stream?.id,
+      tracks: p.stream?.getTracks().map(t => t.kind)
+    })));
+
+
     return participants;
   }, [currentUser, currentRoom, localStream]);
 
@@ -55,6 +64,20 @@ export default function VideoGrid() {
     if (count <= 9) return 'grid-cols-3 md:grid-cols-4 lg:grid-cols-9';
     return 'grid-cols-4 md:grid-cols-6 lg:grid-cols-9';
   }, [allParticipants.length]);
+
+  useEffect(() => {
+  console.log("📊 VideoGrid DEBUG:", {
+    totalParticipants: allParticipants.length,
+    participants: allParticipants.map(p => ({
+      name: p.userName,
+      id: p.id,
+      isLocal: p.id === currentUser?.id,
+      hasStream: !!p.stream,
+      streamTracks: p.stream?.getTracks().map(t => t.kind),
+      isVideoOn: p.isVideoOn
+    }))
+  });
+}, [allParticipants, currentUser]);
 
   if (allParticipants.length === 0) {
     return (
