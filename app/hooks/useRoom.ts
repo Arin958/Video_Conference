@@ -145,57 +145,70 @@ useEffect(() => {
     webrtcManagerRef.current.setLocalStream(localStream);
 
     // 3. Setup event handler
- webrtcManagerRef.current.onEvent((event: WebRTCEvent) => {
-  if (event.type === "stream" && event.stream) {
-    console.log("📡 STREAM EVENT:", {
-      peerSocketId: event.peerId,
-      streamId: event.stream.id,
-      tracks: event.stream.getTracks().map(t => ({
-        kind: t.kind,
-        enabled: t.enabled,
-        id: t.id
-      }))
-    });
+webrtcManagerRef.current.onEvent((event: WebRTCEvent) => {
+    if (event.type === "stream" && event.stream) {
+        console.log("📡 STREAM EVENT: Looking for participant with socketId:", event.peerId);
+        
+        // Log ALL participants for debugging
+        const allParticipants = Array.from(currentRoom.participants.values());
+        console.log("🔍 ALL PARTICIPANTS IN STORE:", 
+            allParticipants.map(p => ({
+                id: p.id,
+                name: p.userName,
+                storedSocketId: p.socketId,
+                storedSocketIdType: typeof p.socketId,
+                socketIdLength: p.socketId?.length,
+                matches: p.socketId === event.peerId
+            }))
+        );
 
-    // Debug: Log all participants to find matching socketId
-    const allParticipants = Array.from(currentRoom.participants.values());
-    console.log("🔍 Searching for participant with socketId:", event.peerId);
-    console.log("Available participants:", allParticipants.map(p => ({
-      name: p.userName,
-      userId: p.id,
-      socketId: p.socketId
-    })));
+        // Try different ways to find the participant
+        let participant = allParticipants.find(p => p.socketId === event.peerId);
+        
+        if (!participant) {
+            console.log("⚠️ Exact socketId match failed, trying case-insensitive...");
+            participant = allParticipants.find(p => 
+                p.socketId?.toLowerCase() === event.peerId?.toLowerCase()
+            );
+        }
+        
+        if (!participant) {
+            console.log("⚠️ Case-insensitive match failed, looking for any participant without stream...");
+            participant = allParticipants.find(p => !p.stream);
+        }
+        
+        if (!participant) {
+            console.log("⚠️ No participant without stream, taking first non-local participant...");
+            const mySocketId = socketService.getSocketId();
+            participant = allParticipants.find(p => p.socketId !== mySocketId);
+        }
 
-    const participant = allParticipants.find(p => p.socketId === event.peerId);
-    
-    if (!participant) {
-      console.error("❌ NO MATCHING PARTICIPANT FOUND!");
-      return;
+        if (!participant) {
+            console.error("❌ Could not find ANY matching participant!");
+            
+            // Create a temporary participant as fallback
+            const tempId = `temp_${event.peerId}`;
+            const tempParticipant = {
+                id: tempId,
+                userName: `User_${event.peerId.substring(0, 8)}`,
+                isHost: false,
+                isVideoOn: true,
+                isAudioOn: true,
+                isScreenSharing: false,
+                socketId: event.peerId
+            };
+            
+            console.log("🆕 Creating fallback participant:", tempParticipant.userName);
+            addParticipant(tempId, tempParticipant);
+            participant = tempParticipant;
+        }
+
+        console.log(`✅ Found participant: ${participant.userName} (socketId: ${participant.socketId})`);
+        
+        updateParticipant(participant.id, {
+            stream: event.stream
+        });
     }
-
-     const currentTracks = participant.stream?.getTracks().map(t => t.id).sort() || [];
-    const newTracks = event.stream.getTracks().map(t => t.id).sort();
-    const tracksChanged = JSON.stringify(currentTracks) !== JSON.stringify(newTracks);
-
-        if (!tracksChanged && participant.stream?.id === event.stream.id) {
-      console.log("⏸️ Stream unchanged, skipping update");
-      return;
-    }
-
-    console.log("✅ Found participant:", participant.userName);
-    
-    // Check if stream is already the same
-    if (participant.stream?.id === event.stream.id) {
-      console.log("⏸️ Stream already set, skipping");
-      return;
-    }
-
-    updateParticipant(participant.id, {
-      stream: event.stream
-    });
-    
-    console.log("✅ Participant updated with stream");
-  }
 });
 
 

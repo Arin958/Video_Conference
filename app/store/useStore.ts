@@ -117,29 +117,42 @@ setCurrentRoom: (room) => set((state) => ({
     isScreenSharing: !state.isScreenSharing
   })),
 
-  addParticipant: (userId, user) => set((state) => {
-        console.log("🏪 STORE: addParticipant called", {
-        userId,
-        userName: user.userName,
-        socketId: user.socketId,
-        currentRoomId: state.currentRoom?.id,
-        existingParticipants: state.currentRoom?.participants?.size || 0
+ addParticipant: (userId, user) => set((state) => {
+    const processedUser = {
+        ...user,
+        socketId: String(user.socketId || '')
+    };
+    
+    console.log("🏪 STORE: Processed user socketId:", {
+        original: user.socketId,
+        processed: processedUser.socketId,
+        type: typeof processedUser.socketId
     });
-    if (!state.currentRoom) return state;
+    
+
+    if (!state.currentRoom) {
+        console.error("❌ STORE: No current room!");
+        return state;
+    }
 
     const newParticipants = new Map(state.currentRoom.participants);
     newParticipants.set(userId, user);
 
-    console.log("✅ STORE: Participant added. New count:", newParticipants.size);
+    console.log("✅ STORE: Participant added. Checking stored data:", 
+        Array.from(newParticipants.values()).map(p => ({
+            name: p.userName,
+            storedSocketId: p.socketId,
+            storedSocketIdType: typeof p.socketId
+        }))
+    );
 
     return {
-      currentRoom: {
-        ...state.currentRoom,
-        participants: newParticipants
-      }
+        currentRoom: {
+            ...state.currentRoom,
+            participants: newParticipants
+        }
     };
-  }),
-
+}),
   updateParticipant: (userId, updates) => set((state) => {
         console.log("🏪 STORE: updateParticipant called", {
         userId,
