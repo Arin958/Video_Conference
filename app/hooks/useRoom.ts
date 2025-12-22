@@ -44,15 +44,24 @@ export const useRoom = () => {
 
   socketService.onUserJoined((user) => {
     console.log("👤 User joined:", user.userName);
+      console.log("👤 HOST RECEIVED user-joined EVENT:", {
+        userId: user.userId,
+        userName: user.userName,
+        socketId: user.socketId, // ⚠️ Check if this exists!
+        isVideoOn: user.isVideoOn,
+        isAudioOn: user.isAudioOn,
+        fullData: user // Log everything
+    });
+
 
     addParticipant(user.userId, {
       id: user.userId,
       userName: user.userName,
+      socketId: user.socketId,
       isHost: false,
       isVideoOn: user.isVideoOn,
       isAudioOn: user.isAudioOn,
       isScreenSharing: false,
-      socketId: user.socketId
     });
 
     const mySocketId = socketService.getSocketId();
