@@ -94,23 +94,27 @@ export const useRoom = () => {
 useEffect(() => {
   if (!currentUser || !currentRoom || !localStream) return;
 
+  // If manager exists, just update the stream
   if (webrtcManagerRef.current) {
-    // Update stream if camera was enabled later
     webrtcManagerRef.current.setLocalStream(localStream);
     return;
   }
 
-  console.log("🔥 Getting WebRTCManager instance");
-  
-  // Use getInstance() instead of create()
+  console.log("🔥 Initializing WebRTCManager for", 
+    currentUser.isHost ? "HOST" : "GUEST"
+  );
+
   try {
+    // 1. Get WebRTCManager instance
     webrtcManagerRef.current = WebRTCManager.getInstance(
       currentUser.socketId,
       currentRoom.id
     );
 
+    // 2. Set local stream
     webrtcManagerRef.current.setLocalStream(localStream);
 
+    // 3. Setup event handler
     webrtcManagerRef.current.onEvent((event: WebRTCEvent) => {
       if (event.type === "stream" && event.stream) {
         const participant = Array.from(
@@ -125,51 +129,41 @@ useEffect(() => {
       }
     });
 
+
+      /* -------------------------------------------------------------------------- */
+  /*                          GUEST → CREATE OFFERS                              */
+  /* -------------------------------------------------------------------------- */
+
+    // 4. GUEST-SPECIFIC: Create offers to existing participants
+    if (!currentUser.isHost) {
+      console.log("🎯 Guest: Creating WebRTC offers");
+      const mySocketId = socketService.getSocketId();
+      let offerCount = 0;
+      
+      currentRoom.participants.forEach((p) => {
+        if (p.socketId && p.socketId !== mySocketId) {
+          console.log(`📤 Offer ${++offerCount}: Creating to ${p.userName} (${p.socketId})`);
+          webrtcManagerRef.current?.createPeer(p.socketId, true);
+        }
+      });
+      
+      if (offerCount === 0) {
+        console.log("ℹ️ No existing participants to connect to");
+      }
+    } else {
+      console.log("⏸️ Host: Waiting for incoming offers");
+    }
+
+    // Expose for debugging
     window.webrtcManager = webrtcManagerRef.current;
   } catch (error) {
-    console.error("Failed to get WebRTCManager instance:", error);
+    console.error("Failed to initialize WebRTCManager:", error);
   }
 }, [currentUser?.socketId, currentRoom?.id, localStream]);
  
 
-  /* -------------------------------------------------------------------------- */
-  /*                          GUEST → CREATE OFFERS                              */
-  /* -------------------------------------------------------------------------- */
 
-useEffect(() => {
-  console.log("🎯 GUEST OFFER EFFECT", {
-    hasManager: !!webrtcManagerRef.current,
-    currentRoomId: currentRoom?.id,
-    isHost: currentUser?.isHost,
-    participantCount: currentRoom?.participants?.size,
-    mySocketId: socketService.getSocketId()
-  });
 
-  // Only guests create offers
-  if (currentUser?.isHost) {
-    console.log("⏸️ Skipping - I'm the host");
-    return;
-  }
-
-  if (!webrtcManagerRef.current || !currentRoom) {
-    console.log("⏸️ Missing manager or room");
-    return;
-  }
-
-  const mySocketId = socketService.getSocketId();
-  console.log("👥 Participants to connect to:", 
-    Array.from(currentRoom.participants.values())
-      .filter(p => p.socketId !== mySocketId)
-      .map(p => p.userName)
-  );
-
-  currentRoom.participants.forEach((p) => {
-    if (p.socketId && p.socketId !== mySocketId) {
-      console.log("🚀 Creating offer to", p.userName);
-      webrtcManagerRef.current?.createPeer(p.socketId, true);
-    }
-  });
-}, [currentRoom?.id, currentUser?.isHost]); // Add currentUser?.isHost to dependencies
 
   /* -------------------------------------------------------------------------- */
   /*                              CREATE ROOM                                    */
