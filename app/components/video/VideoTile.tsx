@@ -1,7 +1,7 @@
 // frontend/src/components/video/VideoTile.tsx
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Mic, MicOff,  VideoOff, User, ScreenShare } from 'lucide-react';
 import { User as UserType } from '@/app/store/useStore';
@@ -15,37 +15,114 @@ interface VideoTileProps {
 export default function VideoTile({ user, isLocal = false, className }: VideoTileProps) {
     
     const videoRef = useRef<HTMLVideoElement>(null);
-    const hasVideo =
-        !!user.stream?.getVideoTracks()[0] &&
-        user.stream.getVideoTracks()[0].enabled &&
-        user.isVideoOn;
+const hasVideo = useMemo(() => {
+    if (!user.stream) return false;
+    
+    const videoTracks = user.stream.getVideoTracks();
+    if (videoTracks.length === 0) {
+        console.log(`❌ No video tracks in stream for ${user.userName}`);
+        return false;
+    }
+    
+    const videoTrack = videoTracks[0];
+    const isTrackLive = videoTrack.readyState === 'live';
+    const isTrackEnabled = videoTrack.enabled;
+    
+    console.log(`🔍 Video check for ${user.userName}:`, {
+        hasVideoTrack: true,
+        trackEnabled: isTrackEnabled,
+        trackReadyState: videoTrack.readyState,
+        trackLabel: videoTrack.label,
+        userIsVideoOn: user.isVideoOn,
+        result: isTrackLive && isTrackEnabled
+    });
+    
+    return isTrackLive && isTrackEnabled;
+}, [user.stream, user.userName, user.isVideoOn]);
+
+// Also add audio check
+const hasAudio = useMemo(() => {
+    if (!user.stream) return false;
+    
+    const audioTracks = user.stream.getAudioTracks();
+    if (audioTracks.length === 0) {
+        console.log(`🔇 No audio tracks in stream for ${user.userName}`);
+        return false;
+    }
+    
+    const audioTrack = audioTracks[0];
+    console.log(`🔊 Audio check for ${user.userName}:`, {
+        hasAudioTrack: true,
+        trackEnabled: audioTrack.enabled,
+        trackReadyState: audioTrack.readyState,
+        trackLabel: audioTrack.label
+    });
+    
+    return audioTrack.enabled && audioTrack.readyState === 'live';
+}, [user.stream, user.userName]);
     const [isSpeaking, setIsSpeaking] = useState(false);
 
     // Add this useEffect at the top of VideoTile
 useEffect(() => {
-    console.log(`🎥 VideoTile "${user.userName}" updated:`, {
+    console.log(`🎥 VideoTile "${user.userName}" FULL DEBUG:`, {
         hasStream: !!user.stream,
         streamId: user.stream?.id,
+        allTracks: user.stream?.getTracks().map(t => ({
+            kind: t.kind,
+            id: t.id,
+            enabled: t.enabled,
+            readyState: t.readyState,
+            label: t.label
+        })),
         videoTracks: user.stream?.getVideoTracks().length,
         audioTracks: user.stream?.getAudioTracks().length,
-        videoEnabled: user.stream?.getVideoTracks()[0]?.enabled,
         isLocal: isLocal
     });
 
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
 
-    
-    if (videoRef.current && user.stream) {
-        console.log(`🎬 Setting video srcObject for ${user.userName}`);
-        videoRef.current.srcObject = user.stream;
-        
-        // Check if video actually plays
-        videoRef.current.onloadedmetadata = () => {
-            console.log(`✅ Video metadata loaded for ${user.userName}`);
-        };
-        
-        videoRef.current.onerror = (e) => {
-            console.error(`❌ Video error for ${user.userName}:`, e);
-        };
+    if (user.stream) {
+        console.log(`🎬 Setting stream for ${user.userName}:`, {
+            previousStreamId: (videoElement.srcObject as MediaStream)?.id,
+            newStreamId: user.stream.id,
+            shouldAttach: videoElement.srcObject !== user.stream
+        });
+
+        // Only update if stream is different
+        if (videoElement.srcObject !== user.stream) {
+            console.log(`🔄 Attaching new stream to video element`);
+            videoElement.srcObject = user.stream;
+            videoElement.muted = isLocal;
+            
+            // Try to play
+            const playPromise = videoElement.play();
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.log(`✅ Video playing successfully for ${user.userName}`);
+                    })
+                    .catch(error => {
+                        console.log(`⏸️ Playback prevented for ${user.userName}:`, error.name);
+                        
+                        // If autoplay is blocked, wait for user interaction
+                        if (error.name === 'NotAllowedError') {
+                            const handleUserInteraction = () => {
+                                videoElement.play()
+                                    .then(() => console.log(`✅ Resumed after interaction`))
+                                    .catch(e => console.log(`❌ Still blocked:`, e));
+                                document.removeEventListener('click', handleUserInteraction);
+                            };
+                            document.addEventListener('click', handleUserInteraction);
+                        }
+                    });
+            }
+        } else {
+            console.log(`⏸️ Same stream already attached, skipping`);
+        }
+    } else {
+        console.log(`❌ No stream available for ${user.userName}`);
+        videoElement.srcObject = null;
     }
 }, [user.stream, user.userName, isLocal]);
 
@@ -103,22 +180,52 @@ useEffect(() => {
             className
         )}>
             {/* Video Element */}
-            {hasVideo ? (
-                <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted={isLocal}
-                    className="w-full h-full object-cover"
-                />
-            ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
-                    <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center mb-4">
-                        <User className="w-10 h-10 text-gray-400" />
-                    </div>
-                    <p className="text-white font-medium text-lg">{displayName}</p>
+             {/* Video Element - FIXED CONDITION */}
+        {hasVideo ? (
+            <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted={isLocal}
+                className="w-full h-full object-cover"
+                // Add these event handlers for debugging
+                onLoadedMetadata={() => {
+                    console.log(`✅ Video metadata loaded for ${user.userName}`);
+                    console.log(`📏 Video dimensions:`, {
+                        width: videoRef.current?.videoWidth,
+                        height: videoRef.current?.videoHeight,
+                        duration: videoRef.current?.duration
+                    });
+                }}
+                onCanPlay={() => console.log(`▶️ Video can play for ${user.userName}`)}
+                onPlaying={() => console.log(`🎬 Video playing for ${user.userName}`)}
+                onError={(e) => {
+                    console.error(`❌ Video error for ${user.userName}:`, 
+                        videoRef.current?.error?.message || e);
+                }}
+            />
+        ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center mb-4">
+                    <User className="w-10 h-10 text-gray-400" />
                 </div>
-            )}
+                <p className="text-white font-medium text-lg">{displayName}</p>
+                {!user.stream ? (
+                    <p className="text-gray-400 text-sm mt-2">Connecting...</p>
+                ) : !hasVideo ? (
+                    <p className="text-gray-400 text-sm mt-2">Video off</p>
+                ) : null}
+            </div>
+        )}
+
+        {/* DEBUG OVERLAY - Keep this to see what's happening */}
+        <div className="absolute top-2 left-2 bg-black/70 text-white text-xs p-2 rounded z-10">
+            <div className="font-bold">{user.userName}</div>
+            <div>Stream: {user.stream ? '✅' : '❌'}</div>
+            <div>Video: {hasVideo ? '📹' : '👤'}</div>
+            <div>Audio: {hasAudio ? '🔊' : '🔇'}</div>
+            <div>Tracks: {user.stream?.getTracks().length || 0}</div>
+        </div>
 
             {/* Overlay with user info */}
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 transition-opacity group-hover:opacity-100 opacity-90">
