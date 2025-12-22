@@ -55,7 +55,12 @@ interface AppState {
 
   // Actions
   setCurrentUser: (user: { id: string; userName: string; isHost: boolean; socketId: string }) => void;
-  setCurrentRoom: (room: { id: string; hostId: string; isLocked?: boolean }) => void;
+    setCurrentRoom: (room: { 
+    id: string; 
+    hostId: string; 
+    isLocked?: boolean;
+    participants?: Map<string, User>;  // Add this
+  }) => void;
   setLocalStream: (stream: MediaStream | null) => void;
   setScreenStream: (stream: MediaStream | null) => void;
   toggleVideo: () => void;
@@ -85,14 +90,16 @@ export const useStore = create<AppState>((set) => ({
   error: null,
 
   setCurrentUser: (user) => set({ currentUser: user }),
-  setCurrentRoom: (room) => set({
+setCurrentRoom: (room) => set((state) => ({
     currentRoom: {
-      id: room.id,
-      hostId: room.hostId,
-      isLocked: room.isLocked || false,
-      participants: new Map()
+        id: room.id,
+        hostId: room.hostId,
+        isLocked: room.isLocked || false,
+        // Use provided participants, existing participants, or new Map
+        participants: room.participants || state.currentRoom?.participants || new Map()
     }
-  }),
+})),
+
   setLocalStream: (stream) => set({ localStream: stream }),
   setScreenStream: (stream) => set({ screenStream: stream }),
 
@@ -111,10 +118,19 @@ export const useStore = create<AppState>((set) => ({
   })),
 
   addParticipant: (userId, user) => set((state) => {
+        console.log("🏪 STORE: addParticipant called", {
+        userId,
+        userName: user.userName,
+        socketId: user.socketId,
+        currentRoomId: state.currentRoom?.id,
+        existingParticipants: state.currentRoom?.participants?.size || 0
+    });
     if (!state.currentRoom) return state;
 
     const newParticipants = new Map(state.currentRoom.participants);
     newParticipants.set(userId, user);
+
+    console.log("✅ STORE: Participant added. New count:", newParticipants.size);
 
     return {
       currentRoom: {
@@ -125,10 +141,18 @@ export const useStore = create<AppState>((set) => ({
   }),
 
   updateParticipant: (userId, updates) => set((state) => {
+        console.log("🏪 STORE: updateParticipant called", {
+        userId,
+        updates,
+        currentRoomId: state.currentRoom?.id
+    });
     if (!state.currentRoom) return state;
 
     const participant = state.currentRoom.participants.get(userId);
-    if (!participant) return state;
+     if (!participant) {
+        console.error(`❌ STORE: Participant ${userId} not found for update`);
+        return state;
+    }
 
     const newParticipants = new Map(state.currentRoom.participants);
     newParticipants.set(userId, { ...participant, ...updates });

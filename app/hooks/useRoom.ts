@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { WebRTCManager, WebRTCEvent } from "@/lib/webrtc";
 import { socketService } from "@/lib/socket";
-import { useStore } from "../store/useStore";
+import { User, useStore } from "../store/useStore";
 
 declare global {
   interface Window {
@@ -43,35 +43,56 @@ export const useRoom = () => {
   socketService.connect();
 
   socketService.onUserJoined((user) => {
-    console.log("👤 User joined:", user.userName);
-      console.log("👤 HOST RECEIVED user-joined EVENT:", {
+      console.log("👤 HOST RECEIVED user-joined EVENT - DETAILED:", {
         userId: user.userId,
         userName: user.userName,
-        socketId: user.socketId, // ⚠️ Check if this exists!
-        isVideoOn: user.isVideoOn,
-        isAudioOn: user.isAudioOn,
-        fullData: user // Log everything
+        socketId: user.socketId,
+        fullEvent: user
     });
 
-
-    addParticipant(user.userId, {
-      id: user.userId,
-      userName: user.userName,
-      socketId: user.socketId,
-      isHost: false,
-      isVideoOn: user.isVideoOn,
-      isAudioOn: user.isAudioOn,
-      isScreenSharing: false,
+    // Check current store state BEFORE update
+    const currentState = useStore.getState();
+    console.log("📊 Store BEFORE update:", {
+        totalParticipants: currentState.currentRoom?.participants?.size || 0,
+        participants: Array.from(currentState.currentRoom?.participants?.values() || []).map(p => ({
+            name: p.userName,
+            socketId: p.socketId
+        }))
     });
+
+    // Create participant data
+    const participantData = {
+        id: user.userId,
+        userName: user.userName,
+        isHost: false,
+        isVideoOn: user.isVideoOn !== undefined ? user.isVideoOn : true,
+        isAudioOn: user.isAudioOn !== undefined ? user.isAudioOn : true,
+        isScreenSharing: false,
+        socketId: user.socketId  // ⚠️ CRITICAL
+    };
+
+    console.log("📝 Adding participant:", participantData);
+
+    // Add to store
+    addParticipant(user.userId, participantData);
+
+    // Check store state AFTER update
+    setTimeout(() => {
+        const updatedState = useStore.getState();
+        console.log("📊 Store AFTER update:", {
+            totalParticipants: updatedState.currentRoom?.participants?.size || 0,
+            participants: Array.from(updatedState.currentRoom?.participants?.values() || []).map(p => ({
+                name: p.userName,
+                socketId: p.socketId
+            }))
+        });
+    }, 100);
 
     const mySocketId = socketService.getSocketId();
-
-    // ✅ IMPORTANT RULE:
-    // Existing users (host) DO NOT create offers here
-    // They only prepare peer to RECEIVE offer
+    
     if (webrtcManagerRef.current && user.socketId !== mySocketId) {
-      console.log("🧩 Preparing peer for incoming offer:", user.userName);
-      webrtcManagerRef.current.createPeer(user.socketId, false); // ❗ NOT initiator
+        console.log("🧩 Preparing peer for incoming offer:", user.userName);
+        webrtcManagerRef.current.createPeer(user.socketId, false);
     }
   });
 
@@ -217,68 +238,89 @@ useEffect(() => {
   /*                              CREATE ROOM                                    */
   /* -------------------------------------------------------------------------- */
 
-  const createRoom = useCallback(async (userName: string, roomId: string) => {
+ const createRoom = useCallback(async (userName: string, roomId: string) => {
     setLoading(true);
     try {
-      const res = await socketService.createRoom(userName, roomId);
+        const res = await socketService.createRoom(userName, roomId);
 
-      setCurrentUser({
-        id: res.userId,
-        userName,
-        isHost: true,
-        socketId: socketService.getSocketId()!
-      });
+        // Create participants Map with just the host
+        const participantsMap = new Map<string, User>();
+        participantsMap.set(res.userId, {
+            id: res.userId,
+            userName,
+            isHost: true,
+            isVideoOn: true,
+            isAudioOn: true,
+            isScreenSharing: false,
+            socketId: socketService.getSocketId()!
+        });
 
-      setCurrentRoom({
-        id: res.roomId,
-        hostId: res.userId
-      });
+        setCurrentUser({
+            id: res.userId,
+            userName,
+            isHost: true,
+            socketId: socketService.getSocketId()!
+        });
 
-      return res;
+        // Pass participants Map
+        setCurrentRoom({
+            id: res.roomId,
+            hostId: res.userId,
+            participants: participantsMap
+        });
+
+        return res;
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  }, []);
-
+}, []);
   /* -------------------------------------------------------------------------- */
   /*                               JOIN ROOM                                     */
   /* -------------------------------------------------------------------------- */
 
-  const joinRoom = useCallback(async (roomId: string, userName: string, password?: string) => {
+const joinRoom = useCallback(async (roomId: string, userName: string, password?: string) => {
     setLoading(true);
     try {
-      const res = await socketService.joinRoom(roomId, userName, password);
+        const res = await socketService.joinRoom(roomId, userName, password);
 
-      setCurrentUser({
-        id: res.userId,
-        userName,
-        isHost: false,
-        socketId: socketService.getSocketId()!
-      });
-
-      setCurrentRoom({
-        id: res.roomId,
-        hostId: res.hostId
-      });
-
-      res.participants.forEach((p) => {
-        addParticipant(p.userId, {
-          id: p.userId,
-          socketId: p.socketId,
-          userName: p.userName,
-          isHost: false,
-          isVideoOn: p.isVideoOn,
-          isAudioOn: p.isAudioOn,
-          isScreenSharing: false,
+        // Create participants Map from server response
+        const participantsMap = new Map<string, User>();
         
+        res.participants.forEach((p) => {
+            console.log("👥 Adding participant from server:", p.userName, "socketId:", p.socketId);
+            
+            participantsMap.set(p.userId, {
+                id: p.userId,
+                userName: p.userName,
+                isHost: p.userId === res.hostId,
+                isVideoOn: p.isVideoOn !== undefined ? p.isVideoOn : true,
+                isAudioOn: p.isAudioOn !== undefined ? p.isAudioOn : true,
+                isScreenSharing: false,
+                socketId: p.socketId  // ⚠️ CRITICAL
+            });
         });
-      });
 
-      return res;
+        setCurrentUser({
+            id: res.userId,
+            userName,
+            isHost: false,
+            socketId: socketService.getSocketId()!
+        });
+
+        // ⚠️ CRITICAL FIX: Pass participants to setCurrentRoom
+        setCurrentRoom({
+            id: res.roomId,
+            hostId: res.hostId,
+            participants: participantsMap  // ⚠️ Pass the participants Map
+        });
+
+        console.log("✅ Joined room with participants:", Array.from(participantsMap.values()).map(p => p.userName));
+
+        return res;
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  }, []);
+}, []);
 
   /* -------------------------------------------------------------------------- */
   /*                               MEDIA CONTROLS                                */
