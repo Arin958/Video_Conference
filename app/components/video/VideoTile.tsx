@@ -15,6 +15,7 @@ interface VideoTileProps {
 export default function VideoTile({ user, isLocal = false, className }: VideoTileProps) {
     
     const videoRef = useRef<HTMLVideoElement>(null);
+    const audioRef = useRef<HTMLAudioElement>(null);
 const hasVideo = useMemo(() => {
     if (!user.stream) return false;
     
@@ -170,6 +171,29 @@ useEffect(() => {
         }
     }, [user.stream, isLocal]);
 
+    // 🔊 REMOTE AUDIO PLAYBACK (THIS IS THE FIX)
+useEffect(() => {
+    if (!audioRef.current || !user.stream || isLocal) return;
+
+    console.log(`🔊 Attaching audio stream for ${user.userName}`);
+
+    audioRef.current.srcObject = user.stream;
+
+    audioRef.current
+        .play()
+        .then(() => console.log(`🔊 Audio playing for ${user.userName}`))
+        .catch(err => {
+            console.warn(`🔇 Audio autoplay blocked`, err.name);
+
+            const resume = () => {
+                audioRef.current?.play();
+                document.removeEventListener("click", resume);
+            };
+
+            document.addEventListener("click", resume);
+        });
+}, [user.stream, isLocal])
+
 
     const displayName = isLocal ? `${user.userName} (You)` : user.userName;
 
@@ -179,6 +203,8 @@ useEffect(() => {
             isSpeaking && "ring-2 ring-green-500",
             className
         )}>
+            <audio ref={audioRef} autoPlay playsInline />
+
             {/* Video Element */}
              {/* Video Element - FIXED CONDITION */}
         {hasVideo ? (
