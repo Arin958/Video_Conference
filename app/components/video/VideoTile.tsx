@@ -207,7 +207,7 @@ useEffect(() => {
 
             {/* Video Element */}
              {/* Video Element - FIXED CONDITION */}
-        {hasVideo ? (
+        {user.stream ? (
             <video
                 ref={videoRef}
                 autoPlay
