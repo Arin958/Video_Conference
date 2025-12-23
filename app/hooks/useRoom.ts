@@ -75,6 +75,17 @@ export const useRoom = () => {
 
     console.log("📝 Adding participant:", participantData);
 
+    const exists = useStore
+  .getState()
+  .currentRoom
+  ?.participants
+  ?.has(user.userId);
+
+if (exists) {
+  console.log("⚠️ Participant already exists:", user.userName);
+  return;
+}
+
     // Add to store
     addParticipant(user.userId, participantData);
 
@@ -149,67 +160,17 @@ useEffect(() => {
     // 3. Setup event handler
 webrtcManagerRef.current.onEvent((event: WebRTCEvent) => {
     if (event.type === "stream" && event.stream) {
-        console.log("📡 STREAM EVENT: Looking for participant with socketId:", event.peerId);
-        
-        // Log ALL participants for debugging
-        const allParticipants = Array.from(currentRoom.participants.values());
-        console.log("🔍 ALL PARTICIPANTS IN STORE:", 
-            allParticipants.map(p => ({
-                id: p.id,
-                name: p.userName,
-                storedSocketId: p.socketId,
-                storedSocketIdType: typeof p.socketId,
-                socketIdLength: p.socketId?.length,
-                matches: p.socketId === event.peerId
-            }))
-        );
+       const participant = Array.from(currentRoom.participants.values())
+    .find(p => p.socketId === event.peerId);
 
-        // Try different ways to find the participant
-        let participant = allParticipants.find(p => p.socketId === event.peerId);
-        
-        if (!participant) {
-            console.log("⚠️ Exact socketId match failed, trying case-insensitive...");
-            participant = allParticipants.find(p => 
-                p.socketId?.toLowerCase() === event.peerId?.toLowerCase()
-            );
-        }
-        
-        if (!participant) {
-            console.log("⚠️ Case-insensitive match failed, looking for any participant without stream...");
-            participant = allParticipants.find(p => !p.stream);
-        }
-        
-        if (!participant) {
-            console.log("⚠️ No participant without stream, taking first non-local participant...");
-            const mySocketId = socketService.getSocketId();
-            participant = allParticipants.find(p => p.socketId !== mySocketId);
-        }
+  if (!participant) {
+    console.error("❌ Stream received for unknown peer:", event.peerId);
+    return;
+  }
 
-        if (!participant) {
-            console.error("❌ Could not find ANY matching participant!");
-            
-            // Create a temporary participant as fallback
-            const tempId = `temp_${event.peerId}`;
-            const tempParticipant = {
-                id: tempId,
-                userName: `User_${event.peerId.substring(0, 8)}`,
-                isHost: false,
-                isVideoOn: true,
-                isAudioOn: true,
-                isScreenSharing: false,
-                socketId: event.peerId
-            };
-            
-            console.log("🆕 Creating fallback participant:", tempParticipant.userName);
-            addParticipant(tempId, tempParticipant);
-            participant = tempParticipant;
-        }
-
-        console.log(`✅ Found participant: ${participant.userName} (socketId: ${participant.socketId})`);
-        
-        updateParticipant(participant.id, {
-            stream: event.stream
-        });
+  updateParticipant(participant.id, {
+    stream: event.stream
+  });
     }
 });
 
