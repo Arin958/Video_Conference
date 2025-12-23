@@ -159,19 +159,46 @@ useEffect(() => {
 
     // 3. Setup event handler
 webrtcManagerRef.current.onEvent((event: WebRTCEvent) => {
-    if (event.type === "stream" && event.stream) {
-       const participant = Array.from(currentRoom.participants.values())
+   if (event.type === "stream" && event.stream) {
+  const state = useStore.getState();
+  const room = state.currentRoom;
+
+  if (!room) {
+    console.error("❌ No room in store");
+    return;
+  }
+
+  const participant = Array.from(room.participants.values())
     .find(p => p.socketId === event.peerId);
 
   if (!participant) {
-    console.error("❌ Stream received for unknown peer:", event.peerId);
+    console.warn(
+      "⏳ Participant not yet in store, retrying...",
+      event.peerId
+    );
+
+    // retry once after microtask
+    setTimeout(() => {
+      const retryState = useStore.getState();
+      const retryParticipant = Array.from(
+        retryState.currentRoom?.participants.values() || []
+      ).find(p => p.socketId === event.peerId);
+
+      if (retryParticipant) {
+        updateParticipant(retryParticipant.id, {
+          stream: event.stream
+        });
+      }
+    }, 0);
+
     return;
   }
 
   updateParticipant(participant.id, {
     stream: event.stream
   });
-    }
+}
+
 });
 
 
