@@ -55,49 +55,9 @@ export const useMediaStream = () => {
   }, [getMediaStream]);
 
 
-  const toggleVideo = useCallback(() => {
-    if(localStream) {
-        const videoTrack = localStream.getVideoTracks()[0];
-        if(videoTrack) {
-            videoTrack.enabled = !videoTrack.enabled;
-            return !videoTrack.enabled;
-        }
-    }
-    return false
-  }, [localStream])
-
-  const toggleAudio = useCallback(() => {
-    if(localStream) {
-        const audioTrack = localStream.getAudioTracks()[0];
-        if(audioTrack) {
-            audioTrack.enabled = !audioTrack.enabled;
-            return !audioTrack.enabled;
-        };
-    }
-    return false
-  },[localStream])
 
 
-  const stopMediaStream = useCallback(() => {
-    if(localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        setLocalStream(null);
-    }
-  }, [localStream]);
 
-
-  useEffect(() => {
-    if(localStream) {
-    const videoTrack = localStream.getVideoTracks()[0];
-    const audioTrack = localStream.getAudioTracks()[0];
-
-    if(videoTrack) {
-        videoTrack.enabled = isVideoOn;
-    }
-
-    if(audioTrack) audioTrack.enabled = isAudioOn;
-}
-  }, [localStream, isVideoOn, isAudioOn]);
 
 
   return {
@@ -105,9 +65,7 @@ export const useMediaStream = () => {
     error,
     isLoading,
     startCamera,
-    toggleVideo,
-    toggleAudio,
-    stopMediaStream,
+ 
     hasCamera: !!localStream?.getVideoTracks().length,
     hasMicrophone: !!localStream?.getAudioTracks().length
   }
