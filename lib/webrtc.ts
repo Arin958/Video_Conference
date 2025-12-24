@@ -73,6 +73,8 @@ export class WebRTCManager {
   }
 
   // Event listener methods...
+
+
   onEvent(callback: (event: WebRTCEvent) => void) {
     this.eventListeners.push(callback);
   }
@@ -471,6 +473,18 @@ export class WebRTCManager {
   getAllPeers(): Map<string, PeerConnection> {
     return new Map(this.peers);
   }
+
+  replaceTrack(kind: "video" | "audio", newTrack: MediaStreamTrack) {
+  Object.values(this.peers).forEach(pc => {
+    const sender = pc
+      .getSenders()
+      .find((s: RTCRtpSender) => s.track?.kind === kind);
+
+    if (sender) {
+      sender.replaceTrack(newTrack);
+    }
+  });
+}
 
   cleanup(): void {
     console.log(`🧹 Cleaning up WebRTC Manager`);

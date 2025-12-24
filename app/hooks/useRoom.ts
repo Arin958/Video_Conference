@@ -26,7 +26,7 @@ export const useRoom = () => {
     updateParticipant,
     setLoading,
     error,
-  
+    
     setError,
     resetRoom
   } = useStore();
@@ -329,15 +329,45 @@ const joinRoom = useCallback(async (roomId: string, userName: string, password?:
   /*                               MEDIA CONTROLS                                */
   /* -------------------------------------------------------------------------- */
 
-  const toggleLocalVideo = useCallback(() => {
-    if (!localStream || !currentUser || !currentRoom) return;
+const toggleLocalVideo = useCallback(async () => {
+  if (!currentUser || !currentRoom) return;
 
-    const track = localStream.getVideoTracks()[0];
-    if (!track) return;
+  const stream = localStream;
+  const track = stream?.getVideoTracks()[0];
 
-    track.enabled = !isVideoOn;
-    socketService.toggleVideo(currentRoom.id, currentUser.id, !isVideoOn);
-  }, [localStream, isVideoOn, currentUser, currentRoom]);
+  // 🔴 TURN OFF CAMERA
+  if (isVideoOn && track) {
+    track.enabled = false;
+
+    socketService.toggleVideo(currentRoom.id, currentUser.id, false);
+    return;
+  }
+
+  // 🟢 TURN ON CAMERA
+  if (!isVideoOn) {
+    // Track exists & alive → just enable
+    if (track && track.readyState === "live") {
+      track.enabled = true;
+    } 
+    // Track was stopped → recreate
+    else {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: true
+      });
+
+      const newTrack = newStream.getVideoTracks()[0];
+
+      // Replace in peer connections
+      webrtcManagerRef?.current?.replaceTrack("video", newTrack);
+
+      // Replace in local stream
+      localStream?.addTrack(newTrack);
+    }
+
+    socketService.toggleVideo(currentRoom.id, currentUser.id, true);
+  }
+}, [localStream, isVideoOn, currentUser, currentRoom]);
+
 
   const toggleLocalAudio = useCallback(() => {
     if (!localStream || !currentUser || !currentRoom) return;
