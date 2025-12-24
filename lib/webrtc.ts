@@ -475,6 +475,7 @@ export class WebRTCManager {
   }
 
   replaceTrack(kind: "video" | "audio", newTrack: MediaStreamTrack) {
+    console.log("🎥 replaceTrack called", newTrack.id);
   Object.values(this.peers).forEach(pc => {
     const sender = pc
       .getSenders()

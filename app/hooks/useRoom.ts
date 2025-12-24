@@ -330,43 +330,44 @@ const joinRoom = useCallback(async (roomId: string, userName: string, password?:
   /* -------------------------------------------------------------------------- */
 
 const toggleLocalVideo = useCallback(async () => {
-  if (!currentUser || !currentRoom) return;
+  if (!currentUser || !currentRoom || !localStream) return;
 
-  const stream = localStream;
-  const track = stream?.getVideoTracks()[0];
+  const videoTrack = localStream.getVideoTracks()[0];
 
-  // 🔴 TURN OFF CAMERA
-  if (isVideoOn && track) {
-    track.enabled = false;
+  // 🔴 TURN CAMERA OFF
+  if (isVideoOn && videoTrack) {
+    videoTrack.enabled = false;
 
     socketService.toggleVideo(currentRoom.id, currentUser.id, false);
     return;
   }
 
-  // 🟢 TURN ON CAMERA
+  // 🟢 TURN CAMERA ON
   if (!isVideoOn) {
-    // Track exists & alive → just enable
-    if (track && track.readyState === "live") {
-      track.enabled = true;
-    } 
-    // Track was stopped → recreate
-    else {
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: true
-      });
-
+    // Track exists and alive → just enable
+    if (videoTrack && videoTrack.readyState === "live") {
+      videoTrack.enabled = true;
+    } else {
+      // 🔥 RECREATE CAMERA
+      const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
       const newTrack = newStream.getVideoTracks()[0];
 
-      // Replace in peer connections
-      webrtcManagerRef?.current?.replaceTrack("video", newTrack);
+      // 🔥 REMOVE OLD TRACK COMPLETELY
+      localStream.getVideoTracks().forEach(t => {
+        localStream.removeTrack(t);
+      });
 
-      // Replace in local stream
-      localStream?.addTrack(newTrack);
+      // 🔥 ADD NEW TRACK
+      localStream.addTrack(newTrack);
+
+      // 🔥 REPLACE TRACK IN PEER CONNECTIONS
+      webrtcManagerRef.current?.replaceTrack("video", newTrack);
     }
 
     socketService.toggleVideo(currentRoom.id, currentUser.id, true);
   }
 }, [localStream, isVideoOn, currentUser, currentRoom]);
+
 
 
   const toggleLocalAudio = useCallback(() => {
