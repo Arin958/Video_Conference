@@ -18,6 +18,8 @@ export default function HomePage() {
   const [showParticipants, setShowParticipants] = useState(false);
   const startedRef = useRef(false);
 
+  console.log('Current room:', currentRoom);
+
   // Initialize camera when user joins a room
  useEffect(() => {
   if (!currentRoom || startedRef.current) return;
@@ -175,7 +177,7 @@ export default function HomePage() {
                   Room: <span className="font-mono">{currentRoom.id}</span>
                 </h1>
                 <p className="text-sm text-gray-400">
-                  {currentUser?.userName} • {currentRoom.participants.size + 1} participants
+                  {currentUser?.userName} • {currentRoom.participants.size} participants
                 </p>
               </div>
             </div>
