@@ -9,6 +9,7 @@ export interface User {
   isHost: boolean;
   isVideoOn: boolean;
   isAudioOn: boolean;
+
   isScreenSharing: boolean;
   stream?: MediaStream;
   socketId: string;
@@ -44,6 +45,7 @@ interface AppState {
   screenStream: MediaStream | null;
   isVideoOn: boolean;
   isAudioOn: boolean;
+
   isScreenSharing: boolean;
 
   // Chat state
@@ -65,6 +67,9 @@ interface AppState {
   setScreenStream: (stream: MediaStream | null) => void;
   toggleVideo: () => void;
   toggleAudio: () => void;
+    setIsVideoOn: (value: boolean) => void;
+  setIsAudioOn: (value: boolean) => void;
+  
   toggleScreenShare: () => void;
   addParticipant: (userId: string, user: User) => void;
   removeParticipant: (userId: string) => void;
@@ -84,11 +89,14 @@ export const useStore = create<AppState>((set) => ({
   screenStream: null,
   isVideoOn: true,
   isAudioOn: true,
+
   isScreenSharing: false,
   messages: [],
   isLoading: false,
   error: null,
-
+  // --------------------
+  setIsVideoOn: (value) => set({ isVideoOn: value }),
+  setIsAudioOn: (value) => set({ isAudioOn: value }),
   setCurrentUser: (user) => set({ currentUser: user }),
 setCurrentRoom: (room) => set((state) => ({
     currentRoom: {
@@ -104,8 +112,10 @@ setCurrentRoom: (room) => set((state) => ({
   setScreenStream: (stream) => set({ screenStream: stream }),
 
   toggleVideo: () => set((state) => ({
+    
     isVideoOn: !state.isVideoOn,
-    currentUser: state.currentUser ? { ...state.currentUser } : null
+    currentUser: state.currentUser ? { ...state.currentUser } : null,
+    
   })),
 
   toggleAudio: () => set((state) => ({

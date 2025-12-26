@@ -265,6 +265,7 @@ class SocketService {
   }
 
   toggleVideo(roomId: string, userId: string, state: boolean): void {
+    console.log("📤 TOGGLE VIDEO IN SOCKET", { roomId, userId, state });
     this.socket?.emit('toggle-video', { roomId, userId, state });
   }
 

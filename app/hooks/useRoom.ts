@@ -18,6 +18,8 @@ export const useRoom = () => {
     isAudioOn,
     isVideoOn,
     isLoading,
+    setIsVideoOn,
+    setIsAudioOn,
     setLocalStream,
     setCurrentUser,
     setCurrentRoom,
@@ -31,7 +33,7 @@ export const useRoom = () => {
     resetRoom
   } = useStore();
 
- ;
+
 
   /* -------------------------------------------------------------------------- */
   /*                               SOCKET SETUP                                 */
@@ -333,80 +335,108 @@ const toggleLocalVideo = useCallback(async () => {
   if (!currentUser || !currentRoom || !localStream) return;
 
   const videoTrack = localStream.getVideoTracks()[0];
-  
+
   try {
-    // 🔴 TURN CAMERA OFF
-    if (isVideoOn && videoTrack) {
-      videoTrack.enabled = false;
-      
-      // Update store state
-      setLocalStream(localStream ? new MediaStream(localStream.getTracks()) : null);
-      
-      socketService.toggleVideo(currentRoom.id, currentUser.id, false);
+    /* =======================
+       TURN CAMERA OFF
+    ======================= */
+    if (isVideoOn) {
+      console.log("🔌 Turning camera off");
+      if (videoTrack) {
+        videoTrack.enabled = false;
+        setIsVideoOn(false);
+      }
+
+      socketService.toggleVideo(
+        currentRoom.id,
+        currentUser.id,
+        false
+      );
+
+      console.log("🔌 Camera turned off", isVideoOn, videoTrack);
+
       return;
     }
 
-    // 🟢 TURN CAMERA ON
-    if (!isVideoOn) {
-      // Track exists and alive → just enable
-      if (videoTrack && videoTrack.readyState === "live") {
-        videoTrack.enabled = true;
-      } else {
-        // 🔥 RECREATE CAMERA
-        const constraints = {
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'user'
-          }
-        };
-        
-        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
-        const newTrack = newStream.getVideoTracks()[0];
-        
-        // Stop old video track first
-        if (videoTrack) {
-          videoTrack.stop();
-          localStream.removeTrack(videoTrack);
-        }
-        
-        // Add new track to existing stream
-        localStream.addTrack(newTrack);
-        
-        // Important: Create a new MediaStream object to trigger React state updates
-        const updatedStream = new MediaStream(localStream.getTracks());
-        
-        // Update the localStream in store
-        setLocalStream(updatedStream);
-        
-        // 🔥 REPLACE TRACK IN PEER CONNECTIONS
-        webrtcManagerRef.current?.replaceTrack("video", newTrack);
-        
-        // Clean up the temporary stream
-        newStream.getTracks().forEach(track => {
-          if (track !== newTrack) track.stop();
-        });
-      }
-      
-      socketService.toggleVideo(currentRoom.id, currentUser.id, true);
+    /* =======================
+       TURN CAMERA ON
+    ======================= */
+    // Case 1: Track exists and is live → just enable
+    if (videoTrack && videoTrack.readyState === "live") {
+      console.log("🔌 Turning camera on");
+      videoTrack.enabled = true;
+      setIsVideoOn(true);
     }
-  } catch (error) {
-    console.error("Error toggling video:", error);
-    setError(error instanceof Error ? error.message : "Failed to toggle camera");
+    // Case 2: Track missing or stopped → recreate
+    else {
+      console.log("🔌 Creating new camera track");
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: true
+      });
+
+      const newTrack = newStream.getVideoTracks()[0];
+
+      // Remove old tracks (if any)
+      localStream.getVideoTracks().forEach(t => {
+        localStream.removeTrack(t);
+        t.stop();
+      });
+
+      // Add new track to SAME stream
+      localStream.addTrack(newTrack);
+
+      // 🔥 THIS IS CRITICAL
+      webrtcManagerRef.current?.replaceTrack("video", newTrack);
+    }
+
+
+    console.log("🔌 Camera turned on", isVideoOn, videoTrack);
+
+    socketService.toggleVideo(
+      currentRoom.id,
+      currentUser.id,
+      true
+    );
+
+  } catch (err) {
+    console.error("toggleLocalVideo failed:", err);
+    setError("Failed to toggle camera");
   }
-}, [localStream, isVideoOn, currentUser, currentRoom, setLocalStream]);
+}, [localStream, isVideoOn, currentUser, currentRoom]);
 
 
 
-  const toggleLocalAudio = useCallback(() => {
-    if (!localStream || !currentUser || !currentRoom) return;
 
-    const track = localStream.getAudioTracks()[0];
-    if (!track) return;
+const toggleLocalAudio = useCallback(() => {
+  if (!localStream || !currentUser || !currentRoom) return;
 
-    track.enabled = !isAudioOn;
-    socketService.toggleAudio(currentRoom.id, currentUser.id, !isAudioOn);
-  }, [localStream, isAudioOn, currentUser, currentRoom]);
+  const audioTrack = localStream.getAudioTracks()[0];
+  if (!audioTrack) return;
+
+  // 🔴 TURN MIC OFF
+  if (isAudioOn) {
+    audioTrack.enabled = false;
+    setIsAudioOn(false); // ✅ CRITICAL
+
+    socketService.toggleAudio(
+      currentRoom.id,
+      currentUser.id,
+      false
+    );
+    return;
+  }
+
+  // 🟢 TURN MIC ON
+  audioTrack.enabled = true;
+  setIsAudioOn(true); // ✅ CRITICAL
+
+  socketService.toggleAudio(
+    currentRoom.id,
+    currentUser.id,
+    true
+  );
+}, [localStream, isAudioOn, currentUser, currentRoom]);
+
 
   /* -------------------------------------------------------------------------- */
   /*                                LEAVE ROOM                                   */
