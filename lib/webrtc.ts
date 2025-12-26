@@ -487,29 +487,49 @@ export class WebRTCManager {
   });
 }
 
-  cleanup(): void {
-    console.log(`🧹 Cleaning up WebRTC Manager`);
+ cleanup(): void {
+  console.log(`🧹 Cleaning up WebRTC Manager`);
 
-    // Close all peer connections
-    this.peers.forEach(peer => {
+  // 🔥 1. Detach tracks from RTCRtpSenders FIRST
+  this.peers.forEach(peer => {
+    const pc = peer.connection;
+
+    pc.getSenders().forEach(sender => {
       try {
-        peer.connection.close();
-        if (peer.dataChannel) {
-          peer.dataChannel.close();
-        }
-      } catch (error) {
-        // Ignore errors during cleanup
+        sender.replaceTrack(null); // 🔥 REQUIRED
+      } catch (err) {
+        console.warn("replaceTrack failed", err);
       }
     });
 
-    // Stop local streams
-    [this.localStream, this.screenStream].forEach(stream => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    });
+    try {
+      pc.ontrack = null;
+      pc.onicecandidate = null;
+      pc.onconnectionstatechange = null;
 
-    this.peers.clear();
-    this.eventListeners = [];
-  }
+      pc.close(); // 🔥 REQUIRED
+    } catch (error) {
+      console.log(error, "pc close error");
+    }
+
+    if (peer.dataChannel) {
+      try {
+        peer.dataChannel.close();
+      } catch {}
+    }
+  });
+
+  // 🔥 2. Stop local + screen streams
+  [this.localStream, this.screenStream].forEach(stream => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+    }
+  });
+
+  // 🔥 3. Clear references
+  this.localStream = null;
+  this.screenStream = null;
+  this.peers.clear();
+  this.eventListeners = [];
+}
 }

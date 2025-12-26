@@ -11,6 +11,7 @@ declare global {
 
 export const useRoom = () => {
   const webrtcManagerRef = useRef<WebRTCManager | null>(null);
+  const activeStreamRef = useRef<MediaStream | null>(null);
   const {
     currentUser,
     currentRoom,
@@ -333,6 +334,10 @@ const joinRoom = useCallback(async (roomId: string, userName: string, password?:
 
 const toggleLocalVideo = useCallback(async () => {
   if (!currentUser || !currentRoom || !localStream) return;
+  console.log("React stream:", localStream?.id);
+  console.log("Manager stream:", webrtcManagerRef.current);
+
+
 
   const videoTrack = localStream.getVideoTracks()[0];
 
@@ -447,12 +452,25 @@ const leaveRoom = useCallback(() => {
     socketService.leaveRoom(currentRoom.id, currentUser.id);
   }
 
-  webrtcManagerRef.current?.cleanup();
-  webrtcManagerRef.current = null; // 🔥 RESET SINGLETON
-  window.webrtcManager = undefined; // 🔥 RESET SINGLETON
+  // 🔴 STOP tracks
+  if (localStream) {
+    localStream.getTracks().forEach(track => track.stop());
+  }
 
+  // 🔴 FULL WebRTC cleanup
+  webrtcManagerRef.current?.cleanup();
+  webrtcManagerRef.current = null;
+  window.webrtcManager = undefined;
+
+  // 🔴 CLEAR stream from store
+  setLocalStream(null);
+
+  // 🔴 RESET room
   resetRoom();
-}, [currentUser, currentRoom]);
+}, [currentUser, currentRoom, localStream]);
+
+
+
 
   return {
     currentUser,

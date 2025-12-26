@@ -194,6 +194,22 @@ useEffect(() => {
         });
 }, [user.stream, isLocal])
 
+useEffect(() => {
+  return () => {
+    // 🔴 RELEASE VIDEO
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
+
+    // 🔴 RELEASE AUDIO
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.srcObject = null;
+    }
+  };
+}, []);
+
 
     const displayName = isLocal ? `${user.userName} (You)` : user.userName;
 
@@ -319,3 +335,4 @@ useEffect(() => {
         </div>
     );
 }
+

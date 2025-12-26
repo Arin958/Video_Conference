@@ -45,6 +45,9 @@ export default function MediaControls({
     if (confirm('Are you sure you want to leave the room?')) {
       leaveRoom();
     }
+
+    // Refresh page after leaveing room
+ 
   };
 
   return (

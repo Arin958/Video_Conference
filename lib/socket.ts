@@ -241,8 +241,12 @@ class SocketService {
     });
   }
 
+
+  
+
   leaveRoom(roomId: string, userId: string): void {
     this.socket?.emit('leave-room', { roomId, userId });
+    
   }
 
   // WebRTC signaling methods

@@ -1,7 +1,7 @@
 // frontend/src/app/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import RoomForm from '@/app/components/landing/RoomForm';
 import VideoGrid from '@/app/components/video/VideoGrid';
 import MediaControls from '@/app/components/video/MediaControl';
@@ -16,13 +16,19 @@ export default function HomePage() {
   const { startCamera, isLoading: mediaLoading, error: mediaError } = useMediaStream();
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
+  const startedRef = useRef(false);
 
   // Initialize camera when user joins a room
-  useEffect(() => {
-    if (currentUser && !localStream) {
-      startCamera().catch(console.error);
-    }
-  }, [currentUser, localStream]);
+ useEffect(() => {
+  if (!currentRoom || startedRef.current) return;
+
+  startedRef.current = true;
+  startCamera().catch(console.error);
+
+  return () => {
+    startedRef.current = false;
+  };
+}, [currentRoom?.id]);
 
   const handleJoinRoom = (roomId: string) => {
     console.log('Joined room:', roomId);
